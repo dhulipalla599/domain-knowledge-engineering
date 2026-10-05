@@ -1,0 +1,58 @@
+# =====================================================================
+#  Domain Knowledge for Full Stack Engineers - central configuration
+#  Edit through the GitHub web UI; the next daily run picks it up.
+#  (The Claude model is chosen in the routine at claude.ai/code/routines.)
+# =====================================================================
+
+# --- Technology stack (fully swappable) ------------------------------
+# Every prompt reads these values, so changing a line here changes the
+# code samples, diagrams and deployment sections for all future topics.
+stack:
+  language: "Java 21"
+  backend: "Spring Boot 3"
+  frontend: "React 18 with TypeScript"
+  database: "PostgreSQL"
+  messaging: "Apache Kafka"
+  cloud: "AWS"
+  compute: "Amazon EKS (Kubernetes)"
+  iac: "Terraform"
+  observability: "OpenTelemetry + CloudWatch"
+
+# --- Audience & tone -------------------------------------------------
+audience: "full stack engineers moving into a new business domain"
+code_style: "concise, production-minded, no boilerplate beyond what teaches the idea"
+
+# --- Page sections ---------------------------------------------------
+# Written in this order. Add, remove, reorder or disable freely.
+stages:
+  - id: business
+    prompt: prompts/business.md
+    enabled: true
+  - id: technical
+    prompt: prompts/technical.md
+    enabled: true
+  - id: career
+    prompt: prompts/career.md
+    enabled: true
+
+# --- Topic selection ---------------------------------------------------
+# round_robin: rotate across enabled domains (Banking, Healthcare, ...)
+# sequential:  finish one domain completely before moving to the next
+selection: round_robin
+
+# --- People ------------------------------------------------------------
+maintainers:            # both review; the daily reviewer alternates
+  - dhulipalla599
+  - naveenks720
+
+# Whose Claude routine writes the pages.
+# One name  -> that person's routine writes every day.
+# Two names -> each person's routine writes on alternate days, and the
+#              other person reviews (both routines must exist).
+authors:
+  - dhulipalla599
+
+# --- Merge rules ---------------------------------------------------------
+auto_merge_after_hours: 24   # bot merges if nobody approved/merged by then
+max_open_prs: 3              # pause generation if this many are waiting
+timezone: America/New_York

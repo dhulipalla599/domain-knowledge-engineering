@@ -1,0 +1,106 @@
+# =====================================================================
+#  Topic backlog. Topics are generated in the order listed.
+#  - Add a domain: copy a block, give it a unique slug.
+#  - Pause a domain: set enabled: false.
+#  - Done topics are detected automatically from docs/<slug>/,
+#    so you never have to mark anything complete by hand.
+# =====================================================================
+
+domains:
+  - name: Banking
+    slug: banking
+    enabled: true
+    topics:
+      - Customer Onboarding and KYC
+      - Core Banking Ledger and Accounts
+      - Payments Processing (ACH, Wire, RTP)
+      - Card Authorization and Settlement
+      - Loan Origination
+      - Fraud Detection
+      - Anti-Money Laundering (AML) Monitoring
+      - Statements and Interest Calculation
+      - Open Banking APIs
+      - Regulatory Reporting
+
+  - name: Healthcare
+    slug: healthcare
+    enabled: true
+    topics:
+      - Patient Registration and Master Patient Index
+      - Appointment Scheduling
+      - Electronic Health Records (EHR)
+      - Insurance Eligibility Verification
+      - Medical Claims and Billing (Revenue Cycle)
+      - Prior Authorization
+      - Lab Orders and Results
+      - Pharmacy and e-Prescribing
+      - HL7 and FHIR Interoperability
+      - HIPAA Consent and Audit Trails
+
+  - name: Insurance
+    slug: insurance
+    enabled: true
+    topics:
+      - Quote and Rating
+      - Underwriting
+      - Policy Administration
+      - Billing and Premium Collection
+      - First Notice of Loss and Claims Processing
+      - Claims Fraud Detection
+      - Reinsurance
+
+  - name: Capital Markets and Brokerage
+    slug: capital-markets
+    enabled: true
+    topics:
+      - Brokerage Account Opening
+      - Order Management System
+      - Trade Execution and Smart Order Routing
+      - Clearing and Settlement
+      - Portfolio Accounting and Positions
+      - Market Data Distribution
+      - Retirement Accounts (401k and IRA)
+
+  - name: Retail
+    slug: retail
+    enabled: true
+    topics:
+      - Product Catalog and Pricing
+      - Inventory Management
+      - Order Management and Fulfillment
+      - Store Replenishment
+      - Loyalty Program
+      - Returns and Refunds
+      - Point of Sale
+
+  - name: Logistics
+    slug: logistics
+    enabled: true
+    topics:
+      - Shipment Booking
+      - Warehouse Management
+      - Route Optimization
+      - Package Tracking and Visibility
+      - Last-Mile Delivery
+      - Freight Billing and Audit
+
+  - name: Telecom
+    slug: telecom
+    enabled: true
+    topics:
+      - Subscriber Onboarding
+      - Number Porting
+      - Usage Rating and Billing
+      - Network Provisioning
+      - Service Assurance and Outage Management
+
+  - name: Airline and Travel
+    slug: airline
+    enabled: true
+    topics:
+      - Flight Shopping and Booking
+      - Passenger Name Record (PNR)
+      - Check-in and Boarding
+      - Crew Scheduling
+      - Irregular Operations (IROPS) and Rebooking
+      - Loyalty and Frequent Flyer Programs
