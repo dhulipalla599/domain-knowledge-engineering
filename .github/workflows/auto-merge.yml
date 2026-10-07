@@ -1,0 +1,28 @@
+name: Auto-merge stale topic PRs
+
+on:
+  schedule:
+    - cron: "15 * * * *"   # hourly; merges PRs older than auto_merge_after_hours
+  workflow_dispatch:
+
+concurrency:
+  group: auto-merge
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write        # lets it start the site deployment after merging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml
+      - name: Merge PRs past the deadline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/auto_merge.py

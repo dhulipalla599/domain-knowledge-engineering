@@ -1,0 +1,122 @@
+name: Open topic PR
+
+# The Claude routine pushes each new page to a claude/content-* branch.
+# This workflow turns that push into a labeled PR, assigns the day's reviewer,
+# and checks the page (sections + diagrams + site build). It re-runs the
+# checks whenever someone pushes more edits to the branch.
+
+on:
+  push:
+    branches: ["claude/content-**"]
+
+concurrency:
+  group: open-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scripts/requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install tools
+        run: |
+          pip install -r scripts/requirements.txt
+          npm install -g @mermaid-js/mermaid-cli
+          if command -v google-chrome >/dev/null; then
+            echo "PUPPETEER_EXECUTABLE_PATH=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          fi
+
+      - name: Find the page in this branch
+        id: page
+        run: |
+          file=$(git diff --name-only --diff-filter=AM origin/main...HEAD -- 'docs/*/*.md' | grep -v '/index.md$' | head -n1)
+          if [ -z "$file" ]; then echo "::error::No new page under docs/ in this branch"; exit 1; fi
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+          python - "$file" >> "$GITHUB_OUTPUT" << 'PY'
+          import sys; sys.path.insert(0, "scripts")
+          from common import front_matter
+          import pathlib
+          fm = front_matter(pathlib.Path(sys.argv[1]))
+          for key in ("title", "domain", "reviewer", "author"):
+              print(f"{key}={str(fm.get(key) or '').strip()}")
+          PY
+
+      - name: Check page
+        id: check
+        continue-on-error: true
+        run: python scripts/check_page.py "${{ steps.page.outputs.file }}" --mermaid --report /tmp/report.md
+
+      - name: Check the site builds
+        id: site
+        continue-on-error: true
+        run: |
+          python scripts/build_catalog.py
+          mkdocs build -f mkdocs.gen.yml --site-dir /tmp/site
+
+      - name: Create PR or post results
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+          TITLE: ${{ steps.page.outputs.title }}
+          DOMAIN: ${{ steps.page.outputs.domain }}
+          REVIEWER: ${{ steps.page.outputs.reviewer }}
+          AUTHOR: ${{ steps.page.outputs.author }}
+          CHECK: ${{ steps.check.outcome }}
+          SITE: ${{ steps.site.outcome }}
+        run: |
+          gh label create auto-generated --color 5319e7 --description "Daily topic page" --force
+          gh label create hold --color d93f0b --description "Stops the 24h auto-merge" --force
+          [ "$SITE" = "failure" ] && printf '\n- ❌ The MkDocs site failed to build with this page (see the workflow log).\n' >> /tmp/report.md
+
+          number=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$number" ]; then
+            {
+              echo "## $DOMAIN: $TITLE"
+              echo
+              echo "Written by Claude (routine of @$AUTHOR). **Reviewer today: @$REVIEWER**"
+              echo
+              cat /tmp/report.md
+              echo
+              echo "### Review checklist"
+              echo "- [ ] Business explanation is accurate (no invented rules or regulations)"
+              echo "- [ ] Diagrams look right (Files changed → ... → View file)"
+              echo "- [ ] Code samples make sense for the configured stack"
+              echo "- [ ] Added something to **Practitioner Notes**"
+              echo
+              echo "**To finish:** Approve, then **Merge pull request** using *Create a merge commit*."
+              echo "No action within 24 hours → the bot merges it. Add the \`hold\` label or request changes to stop that."
+            } > /tmp/body.md
+            url=$(gh pr create --base main --head "$BRANCH" --title "$DOMAIN: $TITLE" \
+                    --body-file /tmp/body.md --label auto-generated)
+            echo "Created $url"
+            if [ -n "$REVIEWER" ]; then
+              gh pr edit "$url" --add-reviewer "$REVIEWER" --add-assignee "$REVIEWER" \
+                || echo "::warning::Could not assign $REVIEWER (has the collaborator invite been accepted?)"
+            fi
+          elif [ "$CHECK" = "failure" ] || [ "$SITE" = "failure" ]; then
+            gh pr comment "$number" --body-file /tmp/report.md
+          fi
+
+      - name: Fail if the page has problems
+        if: steps.check.outcome == 'failure' || steps.site.outcome == 'failure'
+        run: |
+          echo "::error::Page check failed - see the report in the PR."
+          exit 1
