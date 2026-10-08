@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Step 1 of the daily routine: decide whether to write today, and what.
 
-Prints JSON. When "action" is "generate", it also writes .routine/brief.md,
-the complete writing brief for the Claude session.
+Prints JSON. When "action" is "generate", it also
+  - writes .routine/brief.md, the complete writing brief for the Claude session, and
+  - creates the runnable example skeleton under examples/<domain>/<topic>/.
 
     python scripts/next_topic.py --me dhulipalla599 [--force] [--topic "Fraud Detection"]
 """
@@ -15,25 +16,39 @@ from zoneinfo import ZoneInfo
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-from common import BRANCH_PREFIX, DOCS, ROOT, front_matter, load_yaml, required_headings, slugify
+from common import (DOCS, ROOT, class_name, enabled_stages, front_matter, java_identifier,
+                    load_yaml, parse_topic_branch, required_headings, slugify)
 
 
-def remote_topic_branches() -> list[str]:
-    """claude/content-* branches on GitHub = topics waiting in a PR."""
+def remote_heads() -> dict[str, str]:
+    """{branch: sha} for every branch on GitHub."""
     try:
         out = subprocess.run(["git", "ls-remote", "--heads", "origin"], cwd=ROOT,
                              check=True, capture_output=True, text=True, timeout=60).stdout
     except Exception as exc:  # noqa: BLE001
         print(f"warning: could not list remote branches: {exc}", file=sys.stderr)
-        return []
-    refs = [line.split("refs/heads/", 1)[1] for line in out.splitlines() if "refs/heads/" in line]
-    return [r for r in refs if r.startswith(BRANCH_PREFIX)]
+        return {}
+    heads = {}
+    for line in out.splitlines():
+        sha, _, ref = line.partition("\t")
+        if ref.startswith("refs/heads/"):
+            heads[ref[len("refs/heads/"):]] = sha
+    return heads
 
 
-def parse_branch(branch: str):
-    # claude/content-2026-10-06--banking--fraud-detection
-    parts = branch[len(BRANCH_PREFIX):].split("--")
-    return (parts[0], f"{parts[1]}/{parts[2]}") if len(parts) == 3 else (None, None)
+def pending_topics(cfg: dict) -> list[tuple[str, str, str]]:
+    """Topic branches waiting for review: [(branch, date, 'domain/topic')].
+
+    Branches that point at the same commit as main hold no work and are ignored.
+    """
+    heads = remote_heads()
+    main_sha = heads.get("main")
+    result = []
+    for branch, sha in heads.items():
+        day, key = parse_topic_branch(branch, cfg.get("branch_prefix", "feature/"))
+        if key and sha != main_sha:
+            result.append((branch, day, key))
+    return result
 
 
 def pick_topic(cfg, domains, taken, only_topic):
@@ -53,9 +68,27 @@ def pick_topic(cfg, domains, taken, only_topic):
         return None
     if cfg.get("selection", "round_robin") == "sequential":
         d = candidates[0]
-    else:  # domain with the fewest finished topics goes next
+    else:  # domain with the fewest finished topics goes next; ties keep file order
         d = min(candidates, key=lambda x: len(x["topics"]) - len(remaining(x)))
     return d, remaining(d)[0]
+
+
+def scaffold_example(ex: dict, replacements: dict[str, str]) -> None:
+    """Copy the template into ex['path'], filling in the __PLACEHOLDERS__."""
+    src = ROOT / ex["template"]
+    dest = ROOT / ex["path"]
+    if dest.exists():
+        return  # keep work from an earlier attempt
+    for f in sorted(p for p in src.rglob("*") if p.is_file()):
+        rel = str(f.relative_to(src))
+        for key, value in replacements.items():
+            rel = rel.replace(key, value)
+        target = dest / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        text = f.read_text(encoding="utf-8")
+        for key, value in replacements.items():
+            text = text.replace(key, value)
+        target.write_text(text, encoding="utf-8")
 
 
 def skip(reason: str) -> int:
@@ -75,6 +108,7 @@ def main() -> int:
     domains = load_yaml("domains.yaml")["domains"]
     tz = ZoneInfo(cfg.get("timezone", "America/New_York"))
     today = dt.date.fromisoformat(args.date) if args.date else dt.datetime.now(tz).date()
+    prefix = cfg.get("branch_prefix", "feature/")
 
     authors = cfg.get("authors") or []
     maintainers = cfg.get("maintainers") or []
@@ -90,34 +124,71 @@ def main() -> int:
     else:
         reviewer = maintainers[today.toordinal() % len(maintainers)] if maintainers else ""
 
-    branches = remote_topic_branches()
-    pending = [parse_branch(b) for b in branches]
+    pending = pending_topics(cfg)
     published = {f"{p.parent.name}/{p.stem}": p for p in DOCS.glob("*/*.md") if p.name != "index.md"}
-    made_today = any(day == today.isoformat() for day, _ in pending) or any(
+    made_today = any(day == today.isoformat() for _, day, _ in pending) or any(
         str(front_matter(p).get("generated")) == today.isoformat() for p in published.values()
     )
     if not args.force and made_today:
         return skip("a topic was already written today")
-    if not args.force and len(branches) >= cfg.get("max_open_prs", 3):
-        return skip(f"{len(branches)} topic PRs are waiting for review; pausing")
+    if not args.force and len(pending) >= cfg.get("max_open_prs", 3):
+        return skip(f"{len(pending)} topic PRs are waiting for review; pausing")
 
-    taken = set(published) | {key for _, key in pending if key}
+    taken = set(published) | {key for _, _, key in pending}
     choice = pick_topic(cfg, domains, taken, args.topic or None)
     if not choice:
         return skip("no remaining topics; add more to domains.yaml")
     domain, topic = choice
     tslug = slugify(topic)
     path = f"docs/{domain['slug']}/{tslug}.md"
-    branch = f"{BRANCH_PREFIX}{today.isoformat()}--{domain['slug']}--{tslug}"
+    branch = f"{prefix}{today.isoformat()}--{domain['slug']}--{tslug}"
+    repo = cfg.get("repo", "")
+    files_to_commit = [path]
 
+    # ---------------------------------------------------------------- example
+    ex_cfg = cfg.get("examples") or {}
+    example = {}
+    if ex_cfg.get("enabled"):
+        ex_path = f"{ex_cfg.get('folder', 'examples')}/{domain['slug']}/{tslug}"
+        package = ".".join([ex_cfg.get("group_id", "com.example"),
+                            java_identifier(domain["slug"]), java_identifier(tslug)])
+        example = {
+            "path": ex_path,
+            "url": f"https://github.com/{repo}/tree/main/{ex_path}" if repo else ex_path,
+            "template": ex_cfg.get("template", "templates/java-spring-boot"),
+            "package": package,
+            "app_class": class_name(topic),
+            "java_version": str(ex_cfg.get("java_version", "21")),
+            "spring_boot_version": str(ex_cfg.get("spring_boot_version", "3.5.5")),
+            "build_command": ex_cfg.get("build_command", "mvn -B -ntp verify"),
+        }
+        page_url = f"https://github.com/{repo}/blob/main/{path}" if repo else f"../../../{path}"
+        scaffold_example(example, {
+            "__PACKAGE_PATH__": package.replace(".", "/"),
+            "__PACKAGE__": package,
+            "__APP_CLASS__": example["app_class"],
+            "__GROUP_ID__": package.rsplit(".", 1)[0],
+            "__ARTIFACT_ID__": f"{domain['slug']}-{tslug}"[:80],
+            "__TITLE__": topic,
+            "__DOMAIN__": domain["name"],
+            "__JAVA_VERSION__": example["java_version"],
+            "__SPRING_BOOT_VERSION__": example["spring_boot_version"],
+            "__EXAMPLE_PATH__": ex_path,
+            "__PAGE_PATH__": path,
+            "__PAGE_URL__": page_url,
+        })
+        files_to_commit.append(ex_path)
+
+    # ------------------------------------------------------------------ brief
     env = Environment(loader=FileSystemLoader(str(ROOT / "prompts")), undefined=StrictUndefined)
     ctx = {"domain": domain["name"], "topic": topic, "stack": cfg["stack"],
+           "domain_kind": domain.get("kind", "business"), "example": example or {"path": "", "url": ""},
            "audience": cfg.get("audience", "engineers"), "code_style": cfg.get("code_style", "concise")}
     parts = [env.get_template("system.md").render(**ctx)]
-    for stage in cfg["stages"]:
-        if stage.get("enabled", True):
-            parts.append(env.get_template(stage["prompt"].split("/", 1)[1]).render(**ctx))
+    for stage in enabled_stages(cfg):
+        parts.append(env.get_template(stage["prompt"].split("/", 1)[1]).render(**ctx))
 
+    example_line = (f"> **Runnable code:** [`{example['path']}`]({example['url']})\n\n" if example else "")
     skeleton = (
         "---\n"
         f"title: {json.dumps(topic)}\n"
@@ -125,16 +196,26 @@ def main() -> int:
         f"generated: '{today.isoformat()}'\n"
         f"author: {args.me}\n"
         f"reviewer: {reviewer}\n"
-        "---\n\n"
+        + (f"example: {example['path']}\n" if example else "")
+        + "---\n\n"
         f"# {topic}\n\n"
         f"> **Domain:** {domain['name']} · **Generated:** {today:%B %d, %Y} with Claude.\n\n"
-        "...all sections below, in order...\n\n"
+        + example_line
+        + "...all sections below, in order...\n\n"
         "## Practitioner Notes\n\n"
         "> _Reviewer: add real-world experience, corrections or gotchas here before approving._\n"
     )
+    order = (
+        "1. Build the runnable example first (instructions in the RUNNABLE EXAMPLE part below) "
+        "and get its build and tests passing.\n"
+        "2. Then write the page, so the code excerpts and UML diagrams match the real code.\n"
+        if example else "1. Write the page.\n"
+    )
     brief = (
         f"# Writing brief: {domain['name']} / {topic}\n\n"
-        f"Write ONE file: `{path}`\n\n"
+        f"Write the page `{path}`"
+        + (f" and the runnable example in `{example['path']}/`" if example else "") + ".\n\n"
+        "## Order of work\n\n" + order + "\n"
         "## Page skeleton (copy the front matter and header exactly)\n\n"
         "````markdown\n" + skeleton + "````\n\n"
         "## Required ## headings, in this order\n\n"
@@ -145,11 +226,18 @@ def main() -> int:
     out.parent.mkdir(exist_ok=True)
     out.write_text(brief, encoding="utf-8")
 
+    identity = (cfg.get("git_identities") or {}).get(args.me, "")
+    name, _, email = identity.partition(" <")
     print(json.dumps({
         "action": "generate", "domain": domain["name"], "topic": topic,
-        "path": path, "branch": branch, "reviewer": reviewer,
-        "brief": ".routine/brief.md",
-        "commit_message": f"docs({domain['slug']}): add {topic}",
+        "path": path, "example_path": example.get("path", ""),
+        "build_command": example.get("build_command", ""),
+        "files_to_commit": files_to_commit,
+        "branch": branch, "fallback_branch": f"claude/{branch}",
+        "reviewer": reviewer, "brief": ".routine/brief.md",
+        "commit_message": f"docs({domain['slug']}): add {topic}"
+                          + (" with runnable example" if example else ""),
+        "git_author_name": name.strip(), "git_author_email": email.rstrip(">").strip(),
     }, indent=2))
     return 0
 

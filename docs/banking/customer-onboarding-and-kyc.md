@@ -4,11 +4,14 @@ domain: "Banking"
 generated: '2026-10-05'
 author: dhulipalla599
 reviewer: dhulipalla599
+example: examples/banking/customer-onboarding-and-kyc
 ---
 
 # Customer Onboarding and KYC
 
 > **Domain:** Banking · **Generated:** October 05, 2026 with Claude.
+
+> **Runnable code:** [`examples/banking/customer-onboarding-and-kyc`](https://github.com/dhulipalla599/domain-knowledge-engineering/tree/main/examples/banking/customer-onboarding-and-kyc)
 
 ## Explain It Like I'm Five
 
@@ -55,6 +58,52 @@ Had the screening hit been a true match, the bank would have declined or escalat
 | Regulator and auditors | Demonstrable, consistent, reviewable control | Undetected systemic gaps |
 | Data protection officer | Lawful, minimal handling and retention of personal data | Over-collection, breaches, retention violations |
 | External vendors (ID verification, screening) | Clean requests, reasonable load | Misuse, contract or SLA disputes |
+
+## Use Case Diagram
+
+```mermaid
+flowchart LR
+    applicant["👤 Applicant"]
+    analyst["👤 KYC analyst"]
+    officer["👤 Compliance officer"]
+    idv["👤 ID verification vendor"]
+    screen["👤 Screening vendor"]
+    subgraph system["Northwind onboarding system"]
+        uc1(["Submit application"])
+        uc2(["Upload identity documents"])
+        uc3(["Verify identity"])
+        uc4(["Screen sanctions and PEP lists"])
+        uc5(["Rate customer risk"])
+        uc6(["Review flagged application"])
+        uc7(["Open restricted account"])
+        uc8(["Track application status"])
+        uc9(["Audit onboarding decisions"])
+    end
+    applicant --> uc1
+    applicant --> uc2
+    applicant --> uc8
+    analyst --> uc6
+    officer --> uc9
+    uc3 --> idv
+    uc4 --> screen
+    uc1 -.->|include| uc4
+    uc1 -.->|include| uc5
+    uc2 -.->|include| uc3
+    uc6 -.->|extend| uc1
+    uc1 -.->|include| uc7
+```
+
+| Use Case | Primary Actor | Goal | Main success outcome |
+|---|---|---|---|
+| Submit application | Applicant | Apply for an account | Application recorded once, even if the request is retried |
+| Upload identity documents | Applicant | Prove who they are | Documents attached and sent for verification |
+| Verify identity | ID verification vendor | Confirm the document and selfie match | Verification result stored with the vendor reference |
+| Screen sanctions and PEP lists | Screening vendor | Find sanctioned or politically exposed persons | Outcome recorded: clear, possible match, or confirmed match |
+| Rate customer risk | Onboarding system | Decide how much due diligence is needed | Risk rating stored with the rule version |
+| Review flagged application | KYC analyst | Clear or confirm a possible match or EDD case | Decision recorded with a mandatory reason |
+| Open restricted account | Onboarding system | Give an approved customer an account | Account opened once, in a restricted state |
+| Track application status | Applicant | Know where the application stands | A generic status that never reveals a review |
+| Audit onboarding decisions | Compliance officer | Show the regulator that policy was applied | Every decision traceable to inputs, rule and time |
 
 ## Key Terms
 
@@ -329,108 +378,71 @@ A replay with the same `Idempotency-Key` returns the original response rather th
 
 ## Backend Implementation
 
+Excerpts from the runnable example ([`examples/banking/customer-onboarding-and-kyc`](https://github.com/dhulipalla599/domain-knowledge-engineering/tree/main/examples/banking/customer-onboarding-and-kyc)). The key business rule lives in one small, pure class so it can be unit tested and reviewed by compliance:
+
 ```java
-@Entity
-@Table(name = "application")
-public class Application {
-    public enum Status { SUBMITTED, VERIFYING, SCREENING, IN_REVIEW, APPROVED, REJECTED }
+@Component
+public class OnboardingDecisionPolicy {
 
-    @Id private UUID id;
-    @Column(name = "idempotency_key", unique = true, nullable = false)
-    private String idempotencyKey;
-    @Enumerated(EnumType.STRING) private Status status = Status.SUBMITTED;
-    private String rejectionReason;
-    @Version private long version;
-
-    protected Application() {}
-    public Application(UUID id, String idempotencyKey) {
-        this.id = id;
-        this.idempotencyKey = idempotencyKey;
-    }
-
-    public UUID getId() { return id; }
-    public Status getStatus() { return status; }
-
-    /** Key business rule: approval is only legal once every check has cleared. */
-    public void approve(boolean identityVerified, ScreeningOutcome screening, boolean reviewOpen) {
-        if (status == Status.APPROVED) return; // idempotent
-        if (!identityVerified) throw new IllegalStateException("Identity not verified");
-        if (screening != ScreeningOutcome.CLEAR && screening != ScreeningOutcome.CLEARED_BY_REVIEW) {
-            throw new IllegalStateException("Screening not cleared");
+    public Decision decide(ScreeningOutcome screening, RiskRating rating) {
+        if (screening == ScreeningOutcome.CONFIRMED_MATCH) {
+            return Decision.REJECT;
         }
-        if (reviewOpen) throw new IllegalStateException("Open review case");
-        status = Status.APPROVED;
-    }
-
-    public void reject(String reason) {
-        if (status == Status.APPROVED) throw new IllegalStateException("Already approved");
-        status = Status.REJECTED;
-        rejectionReason = reason;
-    }
-}
-
-public enum ScreeningOutcome { CLEAR, POSSIBLE_MATCH, CONFIRMED_MATCH, CLEARED_BY_REVIEW }
-
-public interface ApplicationRepository extends JpaRepository<Application, UUID> {
-    Optional<Application> findByIdempotencyKey(String key);
-}
-
-@Service
-public class OnboardingService {
-    private final ApplicationRepository applications;
-    private final OutboxPublisher outbox;
-    private final DecisionContext decisions; // reads verification, screening and case state
-
-    public OnboardingService(ApplicationRepository applications, OutboxPublisher outbox,
-                             DecisionContext decisions) {
-        this.applications = applications;
-        this.outbox = outbox;
-        this.decisions = decisions;
-    }
-
-    @Transactional
-    public Application submit(String idempotencyKey) {
-        return applications.findByIdempotencyKey(idempotencyKey).orElseGet(() -> {
-            var app = applications.save(new Application(UUID.randomUUID(), idempotencyKey));
-            outbox.publish("application.submitted", app.getId().toString(),
-                           Map.of("applicationId", app.getId()));
-            return app;
-        });
-    }
-
-    @Transactional
-    public Application evaluate(UUID id) {
-        var app = applications.findById(id).orElseThrow(() -> new NotFoundException(id));
-        app.approve(decisions.identityVerified(id), decisions.screening(id), decisions.reviewOpen(id));
-        outbox.publish("application.approved", id.toString(), Map.of("applicationId", id));
-        return app;
-    }
-}
-
-@RestController
-@RequestMapping("/api/v1/applications")
-public class ApplicationController {
-    private final OnboardingService service;
-
-    public ApplicationController(OnboardingService service) { this.service = service; }
-
-    @PostMapping
-    public ResponseEntity<Map<String, Object>> submit(
-            @RequestHeader("Idempotency-Key") String key) {
-        var app = service.submit(key);
-        return ResponseEntity.accepted().body(Map.of(
-            "applicationId", app.getId(), "status", app.getStatus()));
-    }
-
-    @GetMapping("/{id}")
-    public Map<String, Object> get(@PathVariable UUID id) {
-        var app = service.evaluateStatus(id);
-        return Map.of("applicationId", id, "status", app);
+        if (screening == ScreeningOutcome.POSSIBLE_MATCH) {
+            return Decision.REVIEW;
+        }
+        if (rating == RiskRating.HIGH) {
+            return Decision.REVIEW;
+        }
+        return Decision.APPROVE;
     }
 }
 ```
 
-Notes: `evaluateStatus` (omitted) maps internal states such as `IN_REVIEW` to the generic customer-facing `IN_PROGRESS`. A unique constraint on `idempotency_key` protects against two concurrent submissions that both pass the lookup; handle the resulting violation by re-reading. The `@Version` field provides optimistic locking so a manual decision and an automatic one cannot silently overwrite each other. `OutboxPublisher` writes to an outbox table inside the same transaction, and a relay publishes it to Kafka.
+The service applies it inside one transaction, after the idempotency and minimum-age checks:
+
+```java
+@Transactional
+public OnboardingApplication submit(String idempotencyKey, String legalName, LocalDate dateOfBirth,
+                                    String nationality, String occupation) {
+    var existing = applications.findByIdempotencyKey(idempotencyKey);
+    if (existing.isPresent()) {
+        return existing.get();
+    }
+    int age = Period.between(dateOfBirth, LocalDate.now(clock)).getYears();
+    if (age < MINIMUM_AGE) {
+        throw new BusinessRuleViolation("UNDER_MINIMUM_AGE",
+                "Applicants must be at least " + MINIMUM_AGE + "; minors need a guardian-led application");
+    }
+
+    var application = applications.save(
+            new OnboardingApplication(idempotencyKey, legalName, dateOfBirth, nationality, occupation));
+    events.publishEvent(new ApplicationSubmitted(application.getId(), now()));
+
+    application.startScreening();
+    ScreeningOutcome outcome = screening.screen(legalName, dateOfBirth);
+    RiskRating rating = riskPolicy.rate(nationality, occupation);
+    Decision decision = application.completeScreening(outcome, rating, decisionPolicy.decide(outcome, rating));
+    events.publishEvent(new ScreeningCompleted(application.getId(), outcome, rating, now()));
+    publishOutcome(application, decision);
+    return application;
+}
+```
+
+The controller requires an `Idempotency-Key` header and only ever returns the customer-facing status:
+
+```java
+@PostMapping("/applications")
+@ResponseStatus(HttpStatus.ACCEPTED)
+public ApplicationResponse submit(@RequestHeader("Idempotency-Key") @NotBlank String idempotencyKey,
+                                  @Valid @RequestBody SubmitApplicationRequest request) {
+    OnboardingApplication application = onboarding.submit(idempotencyKey, request.legalName().trim(),
+            request.dateOfBirth(), request.nationality(), request.occupation().trim());
+    return toResponse(application);
+}
+```
+
+A unique constraint on `idempotency_key` protects against two concurrent submissions that both pass the lookup, and the `@Version` field gives optimistic locking so an analyst decision and an automatic one cannot silently overwrite each other. In production, `events.publishEvent` becomes a write to an outbox table in the same transaction, relayed to Kafka.
 
 ## Frontend Screen
 
@@ -542,6 +554,197 @@ resource "aws_db_instance" "onboarding" {
 | Privacy | Collect only what is needed, delete when allowed | Data minimisation, tokenisation of identifiers, deletion workflow aligned with retention rules |
 | Recoverability | Applications survive failures and restarts | Durable state in PostgreSQL, replayable Kafka topics, tested backups |
 | Fairness and explainability | Decisions can be explained to regulators | Rule and model versions stored with each decision, human review for adverse outcomes |
+
+## Runnable Example
+
+The example implements submission with idempotency, the minimum-age rule, sanctions screening against a fictional watchlist, risk rating, the approve / review / reject decision, the analyst review queue, and account opening after commit. It needs only Java 21 and Maven: the database is in-memory H2 and the screening vendor is a deterministic stub.
+
+Source: [`examples/banking/customer-onboarding-and-kyc`](https://github.com/dhulipalla599/domain-knowledge-engineering/tree/main/examples/banking/customer-onboarding-and-kyc)
+
+```bash
+cd examples/banking/customer-onboarding-and-kyc
+mvn spring-boot:run    # http://localhost:8080
+mvn verify             # unit + API tests
+```
+
+```bash
+curl -s -X POST localhost:8080/api/v1/applications \
+  -H 'Content-Type: application/json' -H 'Idempotency-Key: demo-1' \
+  -d '{"legalName":"Priya Raman","dateOfBirth":"1991-04-12","nationality":"IN","occupation":"Software engineer"}'
+# 202 {"applicationId":"…","status":"APPROVED","nextStep":"COMPLETE_WELCOME_STEPS","accountNumber":"NWB…"}
+
+curl -s -X POST localhost:8080/api/v1/applications \
+  -H 'Content-Type: application/json' -H 'Idempotency-Key: demo-2' \
+  -d '{"legalName":"Viktor Petrov","dateOfBirth":"1988-02-20","nationality":"GB","occupation":"Teacher"}'
+# 202 {"applicationId":"…","status":"IN_PROGRESS","nextStep":"WAIT_FOR_DECISION","accountNumber":null}
+```
+
+| Class | Package | Responsibility |
+|---|---|---|
+| `ApplicationController` | `api` | REST endpoints for applicants and analysts |
+| `ApiExceptionHandler` | `api` | Rule violations → `422`, not found → `404`, illegal transitions → `409` |
+| `OnboardingService` | `service` | Submit → screen → rate → decide, and analyst review |
+| `OnboardingDecisionPolicy` | `service` | The approve / review / reject rule |
+| `RiskRatingPolicy` | `service` | Simplified risk rating |
+| `OnboardingApplication` | `domain` | Aggregate root; legal status transitions |
+| `CustomerAccount` | `domain` | Account opened after approval, starts restricted |
+| `StubSanctionsScreeningClient` | `integration` | Deterministic stand-in for the screening vendor |
+| `AccountOpeningListener` | `integration` | Opens the account after commit, idempotently |
+| `AuditTrailListener` | `integration` | Logs every decision |
+
+## UML Diagrams
+
+### Class Diagram
+
+The controller depends only on the service; the service owns the transaction and delegates the decision to two small policies, so the business rule has no framework code in it.
+
+```mermaid
+classDiagram
+    class ApplicationController {
+        +submit(idempotencyKey, request) ApplicationResponse
+        +get(id) ApplicationResponse
+        +reviewQueue() List~ReviewCaseResponse~
+        +decide(id, request) ReviewCaseResponse
+    }
+    class OnboardingService {
+        +submit(key, legalName, dateOfBirth, nationality, occupation) OnboardingApplication
+        +resolveReview(id, cleared, reason) OnboardingApplication
+        +get(id) OnboardingApplication
+        +reviewQueue() List~OnboardingApplication~
+    }
+    class OnboardingDecisionPolicy {
+        +decide(screening, rating) Decision
+    }
+    class RiskRatingPolicy {
+        +rate(nationality, occupation) RiskRating
+    }
+    class SanctionsScreeningClient {
+        <<interface>>
+        +screen(legalName, dateOfBirth) ScreeningOutcome
+    }
+    class StubSanctionsScreeningClient
+    class OnboardingApplicationRepository {
+        <<interface>>
+        +findByIdempotencyKey(key) Optional
+        +findByStatusOrderByCreatedAtAsc(status) List
+    }
+    class OnboardingApplication {
+        -UUID id
+        -String idempotencyKey
+        -ApplicationStatus status
+        -ScreeningOutcome screeningOutcome
+        -RiskRating riskRating
+        +startScreening()
+        +completeScreening(outcome, rating, decision) Decision
+        +resolveReview(cleared, reason)
+    }
+    class ApplicationStatus {
+        <<enumeration>>
+        SUBMITTED
+        SCREENING
+        IN_REVIEW
+        APPROVED
+        REJECTED
+        +canMoveTo(target) boolean
+        +customerFacing() String
+    }
+    class CustomerAccount {
+        -UUID applicationId
+        -String accountNumber
+        -AccountStatus status
+    }
+    class AccountOpeningListener {
+        +on(ApplicationApproved)
+    }
+    class AuditTrailListener
+    ApplicationController --> OnboardingService
+    OnboardingService --> OnboardingApplicationRepository
+    OnboardingService --> SanctionsScreeningClient
+    OnboardingService --> RiskRatingPolicy
+    OnboardingService --> OnboardingDecisionPolicy
+    StubSanctionsScreeningClient ..|> SanctionsScreeningClient
+    OnboardingApplicationRepository --> OnboardingApplication
+    OnboardingApplication --> ApplicationStatus
+    AccountOpeningListener --> CustomerAccount
+    OnboardingService ..> AccountOpeningListener : ApplicationApproved
+    OnboardingService ..> AuditTrailListener : all events
+```
+
+### Sequence Diagram (control flow)
+
+One `POST /api/v1/applications` call through the code. The account is opened only after the transaction commits.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant AC as ApplicationController
+    participant S as OnboardingService
+    participant R as OnboardingApplicationRepository
+    participant SC as SanctionsScreeningClient
+    participant P as OnboardingDecisionPolicy
+    participant E as ApplicationEventPublisher
+    participant L as AccountOpeningListener
+    C->>AC: POST /applications (Idempotency-Key)
+    AC->>S: submit(key, details)
+    S->>R: findByIdempotencyKey(key)
+    alt key already used
+        R-->>S: existing application
+        S-->>AC: existing application
+    else new application
+        S->>S: check minimum age
+        S->>R: save(application SUBMITTED)
+        S->>E: ApplicationSubmitted
+        S->>SC: screen(name, dateOfBirth)
+        SC-->>S: ScreeningOutcome
+        S->>P: decide(outcome, rating)
+        P-->>S: APPROVE / REVIEW / REJECT
+        S->>E: ScreeningCompleted
+        alt APPROVE
+            S->>E: ApplicationApproved
+            Note over S,L: transaction commits
+            E->>L: on(ApplicationApproved)
+            L->>L: open RESTRICTED account
+        else REVIEW
+            Note over S: waits in the analyst queue
+        else REJECT
+            S->>E: ApplicationRejected
+        end
+    end
+    AC-->>C: 202 customer-facing status
+```
+
+### State Diagram
+
+`ApplicationStatus.canMoveTo` enforces exactly these transitions; anything else raises an error that the API maps to `409`.
+
+```mermaid
+stateDiagram-v2
+    [*] --> SUBMITTED
+    SUBMITTED --> SCREENING : startScreening()
+    SUBMITTED --> REJECTED
+    SCREENING --> APPROVED : decision APPROVE
+    SCREENING --> IN_REVIEW : decision REVIEW
+    SCREENING --> REJECTED : decision REJECT
+    IN_REVIEW --> APPROVED : analyst clears with reason
+    IN_REVIEW --> REJECTED : analyst confirms with reason
+    APPROVED --> [*]
+    REJECTED --> [*]
+```
+
+### Activity Diagram
+
+The decision logic inside `OnboardingDecisionPolicy.decide`. The order matters: a confirmed match is rejected even for a low-risk customer.
+
+```mermaid
+flowchart TD
+    A(["decide(screening, rating)"]) --> B{"Confirmed sanctions match?"}
+    B -- Yes --> R["REJECT"]
+    B -- No --> C{"Possible match?"}
+    C -- Yes --> V["REVIEW"]
+    C -- No --> D{"Risk rating HIGH?"}
+    D -- Yes --> V
+    D -- No --> P["APPROVE"]
+```
 
 ## AI Opportunities
 

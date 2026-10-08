@@ -31,9 +31,25 @@ stages:
   - id: technical
     prompt: prompts/technical.md
     enabled: true
+  - id: code                      # runnable example + UML (needs examples.enabled)
+    prompt: prompts/code.md
+    enabled: true
   - id: career
     prompt: prompts/career.md
     enabled: true
+
+# --- Runnable code ---------------------------------------------------
+# Each topic also gets a small project under examples/<domain>/<topic>/,
+# copied from the template below and then filled in by Claude. GitHub
+# Actions builds and tests it on every topic PR.
+examples:
+  enabled: true
+  folder: examples
+  template: templates/java-spring-boot
+  group_id: "com.dke"              # Java package root
+  java_version: "21"
+  spring_boot_version: "3.5.5"
+  build_command: "mvn -B -ntp verify"
 
 # --- Topic selection ---------------------------------------------------
 # round_robin: rotate across enabled domains (Banking, Healthcare, ...)
@@ -51,6 +67,18 @@ maintainers:            # both review; the daily reviewer alternates
 #              other person reviews (both routines must exist).
 authors:
   - dhulipalla599
+
+# Git identity each author's routine commits with, so commits count on
+# that person's GitHub contribution graph. The email is GitHub's private
+# "noreply" address: <numeric id>+<username>@users.noreply.github.com
+git_identities:
+  dhulipalla599: "Venkata Sandeep Dhullipalla <219688820+dhulipalla599@users.noreply.github.com>"
+  naveenks720: "naveenks720 <25269118+naveenks720@users.noreply.github.com>"
+
+# --- Repository & branches -------------------------------------------------
+repo: dhulipalla599/domain-knowledge-engineering
+# Topic branches look like feature/2026-10-08--banking--fraud-detection
+branch_prefix: "feature/"
 
 # --- Merge rules ---------------------------------------------------------
 auto_merge_after_hours: 24   # bot merges if nobody approved/merged by then
