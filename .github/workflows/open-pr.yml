@@ -1,7 +1,7 @@
 name: Open topic PR
 
-# The Claude routine pushes each new topic to a branch named
-#   feature/YYYY-MM-DD--<domain>--<topic>   (or claude/feature/... as a fallback)
+# The daily routine pushes each new topic to a branch named
+#   feature/YYYY-MM-DD--<domain>--<topic>   (or <app>/feature/... as a fallback)
 # This workflow turns that push into a labeled PR, assigns the day's reviewer,
 # and checks everything: page sections, diagrams, the site build, and the
 # runnable example's Maven build and tests. It re-runs on every new push to
@@ -51,7 +51,7 @@ jobs:
       - name: Find the page in this branch
         id: page
         run: |
-          file=$(git diff --name-only --diff-filter=AM origin/main...HEAD -- 'docs/*/*.md' | grep -v '/index.md$' | head -n1)
+          file=$(git diff --name-only --diff-filter=AM origin/main...HEAD -- 'docs/*/*.md' | grep -v -e '/index.md$' -e '^docs/qa/' | head -n1)
           if [ -z "$file" ]; then echo "::error::No new page under docs/ in this branch"; exit 1; fi
           echo "file=$file" >> "$GITHUB_OUTPUT"
           python - "$file" >> "$GITHUB_OUTPUT" << 'PY'
@@ -107,7 +107,7 @@ jobs:
             {
               echo "## $DOMAIN: $TITLE"
               echo
-              echo "Written by Claude, committed as @$AUTHOR. **Reviewer today: @$REVIEWER** (approve and merge to get credit)."
+              echo "Author: @$AUTHOR. **Reviewer today: @$REVIEWER** (approve and merge to get credit)."
               echo
               cat /tmp/report.md
               if [ -n "$EXAMPLE" ]; then

@@ -9,7 +9,7 @@ example: examples/banking/customer-onboarding-and-kyc
 
 # Customer Onboarding and KYC
 
-> **Domain:** Banking · **Generated:** October 05, 2026 with Claude.
+> **Domain:** Banking · **Author:** [@dhulipalla599](https://github.com/dhulipalla599) · **Published:** October 05, 2026
 
 > **Runnable code:** [`examples/banking/customer-onboarding-and-kyc`](https://github.com/dhulipalla599/domain-knowledge-engineering/tree/main/examples/banking/customer-onboarding-and-kyc)
 
@@ -378,69 +378,199 @@ A replay with the same `Idempotency-Key` returns the original response rather th
 
 ## Backend Implementation
 
+> The **Java** tab is the code from the runnable example. The **Python** (FastAPI + SQLAlchemy) and **Node.js** (TypeScript + Express) tabs show the same logic for those stacks.
+
 Excerpts from the runnable example ([`examples/banking/customer-onboarding-and-kyc`](https://github.com/dhulipalla599/domain-knowledge-engineering/tree/main/examples/banking/customer-onboarding-and-kyc)). The key business rule lives in one small, pure class so it can be unit tested and reviewed by compliance:
 
-```java
-@Component
-public class OnboardingDecisionPolicy {
+=== "Java"
 
-    public Decision decide(ScreeningOutcome screening, RiskRating rating) {
-        if (screening == ScreeningOutcome.CONFIRMED_MATCH) {
-            return Decision.REJECT;
+    ```java
+    @Component
+    public class OnboardingDecisionPolicy {
+
+        public Decision decide(ScreeningOutcome screening, RiskRating rating) {
+            if (screening == ScreeningOutcome.CONFIRMED_MATCH) {
+                return Decision.REJECT;
+            }
+            if (screening == ScreeningOutcome.POSSIBLE_MATCH) {
+                return Decision.REVIEW;
+            }
+            if (rating == RiskRating.HIGH) {
+                return Decision.REVIEW;
+            }
+            return Decision.APPROVE;
         }
-        if (screening == ScreeningOutcome.POSSIBLE_MATCH) {
-            return Decision.REVIEW;
+    }
+    ```
+
+=== "Python"
+
+    ```python
+    class OnboardingDecisionPolicy:
+
+        def decide(self, screening: ScreeningOutcome, rating: RiskRating) -> Decision:
+            if screening is ScreeningOutcome.CONFIRMED_MATCH:
+                return Decision.REJECT
+            if screening is ScreeningOutcome.POSSIBLE_MATCH:
+                return Decision.REVIEW
+            if rating is RiskRating.HIGH:
+                return Decision.REVIEW
+            return Decision.APPROVE
+    ```
+
+=== "Node.js"
+
+    ```typescript
+    export class OnboardingDecisionPolicy {
+
+      decide(screening: ScreeningOutcome, rating: RiskRating): Decision {
+        if (screening === ScreeningOutcome.CONFIRMED_MATCH) {
+          return Decision.REJECT;
         }
-        if (rating == RiskRating.HIGH) {
-            return Decision.REVIEW;
+        if (screening === ScreeningOutcome.POSSIBLE_MATCH) {
+          return Decision.REVIEW;
+        }
+        if (rating === RiskRating.HIGH) {
+          return Decision.REVIEW;
         }
         return Decision.APPROVE;
+      }
     }
-}
-```
+    ```
 
 The service applies it inside one transaction, after the idempotency and minimum-age checks:
 
-```java
-@Transactional
-public OnboardingApplication submit(String idempotencyKey, String legalName, LocalDate dateOfBirth,
-                                    String nationality, String occupation) {
-    var existing = applications.findByIdempotencyKey(idempotencyKey);
-    if (existing.isPresent()) {
-        return existing.get();
-    }
-    int age = Period.between(dateOfBirth, LocalDate.now(clock)).getYears();
-    if (age < MINIMUM_AGE) {
-        throw new BusinessRuleViolation("UNDER_MINIMUM_AGE",
-                "Applicants must be at least " + MINIMUM_AGE + "; minors need a guardian-led application");
-    }
+=== "Java"
 
-    var application = applications.save(
-            new OnboardingApplication(idempotencyKey, legalName, dateOfBirth, nationality, occupation));
-    events.publishEvent(new ApplicationSubmitted(application.getId(), now()));
+    ```java
+    @Transactional
+    public OnboardingApplication submit(String idempotencyKey, String legalName, LocalDate dateOfBirth,
+                                        String nationality, String occupation) {
+        var existing = applications.findByIdempotencyKey(idempotencyKey);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        int age = Period.between(dateOfBirth, LocalDate.now(clock)).getYears();
+        if (age < MINIMUM_AGE) {
+            throw new BusinessRuleViolation("UNDER_MINIMUM_AGE",
+                    "Applicants must be at least " + MINIMUM_AGE + "; minors need a guardian-led application");
+        }
 
-    application.startScreening();
-    ScreeningOutcome outcome = screening.screen(legalName, dateOfBirth);
-    RiskRating rating = riskPolicy.rate(nationality, occupation);
-    Decision decision = application.completeScreening(outcome, rating, decisionPolicy.decide(outcome, rating));
-    events.publishEvent(new ScreeningCompleted(application.getId(), outcome, rating, now()));
-    publishOutcome(application, decision);
-    return application;
-}
-```
+        var application = applications.save(
+                new OnboardingApplication(idempotencyKey, legalName, dateOfBirth, nationality, occupation));
+        events.publishEvent(new ApplicationSubmitted(application.getId(), now()));
+
+        application.startScreening();
+        ScreeningOutcome outcome = screening.screen(legalName, dateOfBirth);
+        RiskRating rating = riskPolicy.rate(nationality, occupation);
+        Decision decision = application.completeScreening(outcome, rating, decisionPolicy.decide(outcome, rating));
+        events.publishEvent(new ScreeningCompleted(application.getId(), outcome, rating, now()));
+        publishOutcome(application, decision);
+        return application;
+    }
+    ```
+
+=== "Python"
+
+    ```python
+    def submit(self, idempotency_key: str, legal_name: str, date_of_birth: date,
+               nationality: str, occupation: str) -> OnboardingApplication:
+        with self.session.begin():
+            existing = self.applications.find_by_idempotency_key(idempotency_key)
+            if existing is not None:
+                return existing
+            age = relativedelta(self.clock.today(), date_of_birth).years
+            if age < MINIMUM_AGE:
+                raise BusinessRuleViolation(
+                    "UNDER_MINIMUM_AGE",
+                    f"Applicants must be at least {MINIMUM_AGE}; minors need a guardian-led application")
+
+            application = self.applications.save(
+                OnboardingApplication(idempotency_key, legal_name, date_of_birth, nationality, occupation))
+            self.events.publish(ApplicationSubmitted(application.id, self.now()))
+
+            application.start_screening()
+            outcome = self.screening.screen(legal_name, date_of_birth)
+            rating = self.risk_policy.rate(nationality, occupation)
+            decision = application.complete_screening(outcome, rating, self.decision_policy.decide(outcome, rating))
+            self.events.publish(ScreeningCompleted(application.id, outcome, rating, self.now()))
+            self._publish_outcome(application, decision)
+            return application
+    ```
+
+=== "Node.js"
+
+    ```typescript
+    async submit(idempotencyKey: string, legalName: string, dateOfBirth: Date,
+                 nationality: string, occupation: string): Promise<OnboardingApplication> {
+      return this.db.transaction(async (tx) => {
+        const existing = await this.applications.findByIdempotencyKey(tx, idempotencyKey);
+        if (existing) {
+          return existing;
+        }
+        const age = differenceInYears(this.clock.now(), dateOfBirth); // date-fns
+        if (age < MINIMUM_AGE) {
+          throw new BusinessRuleViolation("UNDER_MINIMUM_AGE",
+            `Applicants must be at least ${MINIMUM_AGE}; minors need a guardian-led application`);
+        }
+
+        const application = await this.applications.save(tx,
+          new OnboardingApplication(idempotencyKey, legalName, dateOfBirth, nationality, occupation));
+        this.events.emit(new ApplicationSubmitted(application.id, this.now()));
+
+        application.startScreening();
+        const outcome = await this.screening.screen(legalName, dateOfBirth);
+        const rating = this.riskPolicy.rate(nationality, occupation);
+        const decision = application.completeScreening(outcome, rating, this.decisionPolicy.decide(outcome, rating));
+        await this.applications.save(tx, application);
+        this.events.emit(new ScreeningCompleted(application.id, outcome, rating, this.now()));
+        await this.publishOutcome(tx, application, decision);
+        return application;
+      });
+    }
+    ```
 
 The controller requires an `Idempotency-Key` header and only ever returns the customer-facing status:
 
-```java
-@PostMapping("/applications")
-@ResponseStatus(HttpStatus.ACCEPTED)
-public ApplicationResponse submit(@RequestHeader("Idempotency-Key") @NotBlank String idempotencyKey,
-                                  @Valid @RequestBody SubmitApplicationRequest request) {
-    OnboardingApplication application = onboarding.submit(idempotencyKey, request.legalName().trim(),
-            request.dateOfBirth(), request.nationality(), request.occupation().trim());
-    return toResponse(application);
-}
-```
+=== "Java"
+
+    ```java
+    @PostMapping("/applications")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public ApplicationResponse submit(@RequestHeader("Idempotency-Key") @NotBlank String idempotencyKey,
+                                      @Valid @RequestBody SubmitApplicationRequest request) {
+        OnboardingApplication application = onboarding.submit(idempotencyKey, request.legalName().trim(),
+                request.dateOfBirth(), request.nationality(), request.occupation().trim());
+        return toResponse(application);
+    }
+    ```
+
+=== "Python"
+
+    ```python
+    @router.post("/applications", status_code=202, response_model=ApplicationResponse)
+    def submit(request: SubmitApplicationRequest,
+               idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+               onboarding: OnboardingService = Depends()) -> ApplicationResponse:
+        application = onboarding.submit(idempotency_key, request.legal_name.strip(), request.date_of_birth,
+                                        request.nationality, request.occupation.strip())
+        return to_response(application)
+    ```
+
+=== "Node.js"
+
+    ```typescript
+    router.post("/applications", validate(SubmitApplicationRequest), async (req, res) => {
+      const idempotencyKey = req.header("Idempotency-Key")?.trim();
+      if (!idempotencyKey) {
+        return res.status(400).json({ title: "Idempotency-Key header is required" });
+      }
+      const body = req.body as SubmitApplicationRequest;
+      const application = await onboarding.submit(idempotencyKey, body.legalName.trim(),
+        new Date(body.dateOfBirth), body.nationality, body.occupation.trim());
+      res.status(202).json(toResponse(application));
+    });
+    ```
 
 A unique constraint on `idempotency_key` protects against two concurrent submissions that both pass the lookup, and the `@Version` field gives optimistic locking so an analyst decision and an automatic one cannot silently overwrite each other. In production, `events.publishEvent` becomes a write to an outbox table in the same transaction, relayed to Kafka.
 

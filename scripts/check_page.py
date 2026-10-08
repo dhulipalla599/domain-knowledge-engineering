@@ -4,7 +4,7 @@
     python scripts/check_page.py docs/banking/fraud-detection.md [--mermaid] [--build] [--report out.md]
 
 Always checks: front matter, a single H1, every required section, balanced
-code fences, the Mermaid diagrams the page must have (use case, UML class,
+code fences, a code tab per language in `code_tabs` (Backend Implementation), the Mermaid diagrams the page must have (use case, UML class,
 sequence, state, ER), and - when the page names an `example:` folder - that
 the example exists, has tests, and has no TODOs left in its README.
 --mermaid renders each diagram with mermaid-cli (used in GitHub Actions).
@@ -118,6 +118,13 @@ def main() -> int:
             problems.append(f"missing section `## {head}`")
     if len(re.findall(r"(?m)^\s*```", body)) % 2:
         problems.append("a code block is not closed (odd number of ``` fences)")
+
+    tabs = [t["label"] for t in cfg.get("code_tabs") or []]
+    backend = re.search(r"(?ms)^## Backend Implementation\s*$(.*?)(?=^## )", body)
+    if len(tabs) > 1 and backend:
+        missing = [t for t in tabs if f'=== "{t}"' not in backend.group(1)]
+        if missing:
+            problems.append(f"`## Backend Implementation` has no code tab for: {', '.join(missing)}")
 
     blocks = MERMAID.findall(body)
     kinds: dict[str, int] = {}

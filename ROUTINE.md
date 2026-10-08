@@ -1,6 +1,6 @@
 # Daily routine steps
 
-The Claude routine reads this file on every run and follows it exactly.
+The daily routine reads this file on every run and follows it exactly.
 `<ME>` is the GitHub username given in the routine's prompt.
 
 1. Run `pip install -q -r scripts/requirements-routine.txt`.
@@ -20,9 +20,11 @@ The Claude routine reads this file on every run and follows it exactly.
 7. Commit and push:
    - `git checkout -b <branch>` using "branch" from the JSON.
    - `git add` exactly the paths in "files_to_commit" (never `.routine/` or `target/`).
-   - Commit as the author from the JSON:
+   - Commit as the author from the JSON, setting both author and committer:
      `git -c user.name="<git_author_name>" -c user.email="<git_author_email>" commit -m "<commit_message>"`
-     (if those two fields are empty, commit normally).
+     (if those two fields are empty, use the identity of <ME> from `git_identities` in `config.yaml`).
+   - The commit message is exactly "commit_message": no `Co-Authored-By`, session links or any other
+     trailers. Commits, branches, pages and code are credited only to the maintainers.
    - The author may be your collaborator rather than you; that is intended ("commit_author" in the JSON).
    - `git push -u origin <branch>`. If that push is rejected, push the same commit to "fallback_branch" instead:
      `git push -u origin HEAD:<fallback_branch>`.
