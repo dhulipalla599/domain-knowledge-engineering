@@ -46,6 +46,9 @@ You need a **Claude Pro or Max** plan (routines aren't on the Free plan). Nothin
 - Missed it? The bot merges after 24 hours. Add the `hold` label or request changes to stop that.
 - Closing a PR without merging? Click **Delete branch** too, or that topic stays reserved.
 
+## Alternating contributors (on by default)
+One routine is enough. Each day's commit is credited to the next person in `commit_authors:` in `config.yaml` (dhulipalla599, naveenks720, dhulipalla599, ...), and the PR is assigned to the other person to approve and merge. Merge with **Create a merge commit** (not squash), so the original author stays on the commit and it counts on that person's contribution graph.
+
 ## Optional: alternate the writing too
 Your friend can create the same routine on their own Pro/Max account (steps 5-6, using `--me naveenks720` in the prompt). Then set `authors:` in `config.yaml` to both names. Each routine writes on alternate days and the other person reviews.
 

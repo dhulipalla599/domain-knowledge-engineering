@@ -23,6 +23,7 @@ The Claude routine reads this file on every run and follows it exactly.
    - Commit as the author from the JSON:
      `git -c user.name="<git_author_name>" -c user.email="<git_author_email>" commit -m "<commit_message>"`
      (if those two fields are empty, commit normally).
+   - The author may be your collaborator rather than you; that is intended ("commit_author" in the JSON).
    - `git push -u origin <branch>`. If that push is rejected, push the same commit to "fallback_branch" instead:
      `git push -u origin HEAD:<fallback_branch>`.
 8. Do not open a pull request, do not change any other file, and never push to main.

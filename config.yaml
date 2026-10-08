@@ -68,8 +68,17 @@ maintainers:            # both review; the daily reviewer alternates
 authors:
   - dhulipalla599
 
-# Git identity each author's routine commits with, so commits count on
-# that person's GitHub contribution graph. The email is GitHub's private
+# Whose name each day's commit carries. The person alternates every day
+# (in this order) and the OTHER maintainer is assigned to review and merge,
+# so both of you build contribution history: one day you commit and your
+# friend reviews, the next day the reverse. Works with a single routine.
+# Leave it empty to commit as the routine owner every day.
+commit_authors:
+  - dhulipalla599
+  - naveenks720
+
+# Git identity for each person, so commits count on their GitHub
+# contribution graph. The email is GitHub's private
 # "noreply" address: <numeric id>+<username>@users.noreply.github.com
 git_identities:
   dhulipalla599: "Venkata Sandeep Dhullipalla <219688820+dhulipalla599@users.noreply.github.com>"
