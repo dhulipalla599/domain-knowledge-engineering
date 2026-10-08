@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Merge generated PRs that have waited longer than auto_merge_after_hours.
 
-Skipped when a PR is a draft, has the `hold` label, or has changes requested.
+Skipped when a PR is a draft, has the `hold` label, has changes requested,
+or its checks (page check, diagrams, example build) failed or are still running.
 """
 import datetime as dt
 import json
@@ -17,13 +18,25 @@ def gh(*args: str) -> str:
     return subprocess.run(["gh", *args], check=True, capture_output=True, text=True).stdout
 
 
+def checks_state(pr: dict) -> str:
+    """'failed', 'pending' or 'ok' for the PR's latest commit."""
+    state = "ok"
+    for c in pr.get("statusCheckRollup") or []:
+        result = (c.get("conclusion") or c.get("state") or "").upper()
+        if result in ("FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED"):
+            return "failed"
+        if result in ("", "PENDING", "EXPECTED", "IN_PROGRESS", "QUEUED"):
+            state = "pending"
+    return state
+
+
 def main() -> None:
     cfg = yaml.safe_load((ROOT / "config.yaml").read_text())
     limit = dt.timedelta(hours=cfg.get("auto_merge_after_hours", 24))
     now = dt.datetime.now(dt.timezone.utc)
     prs = json.loads(gh(
         "pr", "list", "--label", "auto-generated", "--state", "open", "--limit", "50",
-        "--json", "number,title,createdAt,isDraft,labels,reviewDecision",
+        "--json", "number,title,createdAt,isDraft,labels,reviewDecision,statusCheckRollup",
     ) or "[]")
 
     merged = 0
@@ -35,6 +48,8 @@ def main() -> None:
             print(f"wait   {tag} ({age.total_seconds() / 3600:.1f}h old)")
         elif pr["isDraft"] or "hold" in labels or pr["reviewDecision"] == "CHANGES_REQUESTED":
             print(f"skip   {tag} (draft, on hold, or changes requested)")
+        elif (checks := checks_state(pr)) != "ok":
+            print(f"skip   {tag} (checks {checks}; fix the PR or merge it by hand)")
         else:
             try:
                 gh("pr", "merge", str(pr["number"]), "--merge", "--delete-branch")

@@ -1,13 +1,17 @@
 name: Open topic PR
 
-# The Claude routine pushes each new page to a claude/content-* branch.
+# The Claude routine pushes each new topic to a branch named
+#   feature/YYYY-MM-DD--<domain>--<topic>   (or claude/feature/... as a fallback)
 # This workflow turns that push into a labeled PR, assigns the day's reviewer,
-# and checks the page (sections + diagrams + site build). It re-runs the
-# checks whenever someone pushes more edits to the branch.
+# and checks everything: page sections, diagrams, the site build, and the
+# runnable example's Maven build and tests. It re-runs on every new push to
+# the branch, so reviewer edits are re-checked too.
 
 on:
   push:
-    branches: ["claude/content-**"]
+    branches:
+      - "feature/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]--**"
+      - "claude/feature/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]--**"
 
 concurrency:
   group: open-pr-${{ github.ref }}
@@ -16,23 +20,23 @@ concurrency:
 jobs:
   pr:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions:
       contents: read
       pull-requests: write
       issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: scripts/requirements.txt
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "20"
 
@@ -52,17 +56,26 @@ jobs:
           echo "file=$file" >> "$GITHUB_OUTPUT"
           python - "$file" >> "$GITHUB_OUTPUT" << 'PY'
           import sys; sys.path.insert(0, "scripts")
-          from common import front_matter
+          from common import front_matter, load_yaml
           import pathlib
           fm = front_matter(pathlib.Path(sys.argv[1]))
-          for key in ("title", "domain", "reviewer", "author"):
+          for key in ("title", "domain", "reviewer", "author", "example"):
               print(f"{key}={str(fm.get(key) or '').strip()}")
+          ex = load_yaml("config.yaml").get("examples") or {}
+          print(f"java={ex.get('java_version', '21')}")
           PY
 
-      - name: Check page
+      - uses: actions/setup-java@v5
+        if: steps.page.outputs.example != ''
+        with:
+          distribution: temurin
+          java-version: ${{ steps.page.outputs.java }}
+          cache: maven
+
+      - name: Check page and build the example
         id: check
         continue-on-error: true
-        run: python scripts/check_page.py "${{ steps.page.outputs.file }}" --mermaid --report /tmp/report.md
+        run: python scripts/check_page.py "${{ steps.page.outputs.file }}" --mermaid --build --report /tmp/report.md
 
       - name: Check the site builds
         id: site
@@ -79,30 +92,41 @@ jobs:
           DOMAIN: ${{ steps.page.outputs.domain }}
           REVIEWER: ${{ steps.page.outputs.reviewer }}
           AUTHOR: ${{ steps.page.outputs.author }}
+          EXAMPLE: ${{ steps.page.outputs.example }}
           CHECK: ${{ steps.check.outcome }}
           SITE: ${{ steps.site.outcome }}
         run: |
           gh label create auto-generated --color 5319e7 --description "Daily topic page" --force
           gh label create hold --color d93f0b --description "Stops the 24h auto-merge" --force
-          [ "$SITE" = "failure" ] && printf '\n- ❌ The MkDocs site failed to build with this page (see the workflow log).\n' >> /tmp/report.md
+          if [ "$SITE" = "failure" ]; then
+            printf '\n- ❌ The MkDocs site failed to build with this page (see the workflow log).\n' >> /tmp/report.md
+          fi
 
           number=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
           if [ -z "$number" ]; then
             {
               echo "## $DOMAIN: $TITLE"
               echo
-              echo "Written by Claude (routine of @$AUTHOR). **Reviewer today: @$REVIEWER**"
+              echo "Written by Claude, committed as @$AUTHOR. **Reviewer today: @$REVIEWER** (approve and merge to get credit)."
               echo
               cat /tmp/report.md
+              if [ -n "$EXAMPLE" ]; then
+                echo
+                echo "### Run the example locally"
+                echo '```bash'
+                echo "git fetch origin $BRANCH && git checkout $BRANCH"
+                echo "cd $EXAMPLE && mvn spring-boot:run"
+                echo '```'
+              fi
               echo
               echo "### Review checklist"
               echo "- [ ] Business explanation is accurate (no invented rules or regulations)"
-              echo "- [ ] Diagrams look right (Files changed → ... → View file)"
-              echo "- [ ] Code samples make sense for the configured stack"
+              echo "- [ ] Use case and UML diagrams match the example code (Files changed → ... → View file)"
+              echo "- [ ] The example builds, runs, and the curl calls in its README work"
               echo "- [ ] Added something to **Practitioner Notes**"
               echo
               echo "**To finish:** Approve, then **Merge pull request** using *Create a merge commit*."
-              echo "No action within 24 hours → the bot merges it. Add the \`hold\` label or request changes to stop that."
+              echo "No action within 24 hours → the bot merges it if all checks pass. Add the \`hold\` label or request changes to stop that."
             } > /tmp/body.md
             url=$(gh pr create --base main --head "$BRANCH" --title "$DOMAIN: $TITLE" \
                     --body-file /tmp/body.md --label auto-generated)
@@ -111,12 +135,12 @@ jobs:
               gh pr edit "$url" --add-reviewer "$REVIEWER" --add-assignee "$REVIEWER" \
                 || echo "::warning::Could not assign $REVIEWER (has the collaborator invite been accepted?)"
             fi
-          elif [ "$CHECK" = "failure" ] || [ "$SITE" = "failure" ]; then
+          else
             gh pr comment "$number" --body-file /tmp/report.md
           fi
 
-      - name: Fail if the page has problems
+      - name: Fail if the page or example has problems
         if: steps.check.outcome == 'failure' || steps.site.outcome == 'failure'
         run: |
-          echo "::error::Page check failed - see the report in the PR."
+          echo "::error::Checks failed - see the report in the PR."
           exit 1
