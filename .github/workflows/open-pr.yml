@@ -107,7 +107,7 @@ jobs:
             {
               echo "## $DOMAIN: $TITLE"
               echo
-              echo "Written by Claude (routine of @$AUTHOR). **Reviewer today: @$REVIEWER**"
+              echo "Written by Claude, committed as @$AUTHOR. **Reviewer today: @$REVIEWER** (approve and merge to get credit)."
               echo
               cat /tmp/report.md
               if [ -n "$EXAMPLE" ]; then

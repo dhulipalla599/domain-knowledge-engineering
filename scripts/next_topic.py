@@ -118,9 +118,13 @@ def main() -> int:
     if todays_author != args.me:
         return skip(f"today is {todays_author}'s day to write")
 
-    if len(authors) > 1:
-        others = [m for m in maintainers if m != args.me]
-        reviewer = others[0] if others else ""
+    # Who today's commit is credited to: alternates daily through commit_authors,
+    # otherwise the routine owner. The reviewer is always someone else.
+    commit_authors = cfg.get("commit_authors") or []
+    commit_author = commit_authors[today.toordinal() % len(commit_authors)] if commit_authors else args.me
+    others = [m for m in maintainers if m != commit_author]
+    if others:
+        reviewer = others[today.toordinal() % len(others)]
     else:
         reviewer = maintainers[today.toordinal() % len(maintainers)] if maintainers else ""
 
@@ -194,7 +198,7 @@ def main() -> int:
         f"title: {json.dumps(topic)}\n"
         f"domain: {json.dumps(domain['name'])}\n"
         f"generated: '{today.isoformat()}'\n"
-        f"author: {args.me}\n"
+        f"author: {commit_author}\n"
         f"reviewer: {reviewer}\n"
         + (f"example: {example['path']}\n" if example else "")
         + "---\n\n"
@@ -226,7 +230,7 @@ def main() -> int:
     out.parent.mkdir(exist_ok=True)
     out.write_text(brief, encoding="utf-8")
 
-    identity = (cfg.get("git_identities") or {}).get(args.me, "")
+    identity = (cfg.get("git_identities") or {}).get(commit_author, "")
     name, _, email = identity.partition(" <")
     print(json.dumps({
         "action": "generate", "domain": domain["name"], "topic": topic,
@@ -234,7 +238,7 @@ def main() -> int:
         "build_command": example.get("build_command", ""),
         "files_to_commit": files_to_commit,
         "branch": branch, "fallback_branch": f"claude/{branch}",
-        "reviewer": reviewer, "brief": ".routine/brief.md",
+        "commit_author": commit_author, "reviewer": reviewer, "brief": ".routine/brief.md",
         "commit_message": f"docs({domain['slug']}): add {topic}"
                           + (" with runnable example" if example else ""),
         "git_author_name": name.strip(), "git_author_email": email.rstrip(">").strip(),
