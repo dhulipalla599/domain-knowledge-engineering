@@ -5,7 +5,8 @@ New topics are written by a Claude routine every day at 11:30 AM Eastern. A GitH
 ## Daily review (maintainers)
 
 1. Open the PR assigned to you (reviewers alternate each day).
-2. Check the content against the checklist in the PR description.
+2. Check the content against the checklist in the PR description. To try the example locally:
+   `git fetch origin <branch> && git checkout <branch>`, then `cd examples/<domain>/<topic> && mvn spring-boot:run`.
 3. Add something real to **Practitioner Notes**: open *Files changed*, click the `...` menu on the file, choose *Edit file*, and commit to the same branch.
 4. **Approve**, then **Merge pull request** using *Create a merge commit*.
 
@@ -15,7 +16,8 @@ If nobody acts within 24 hours the bot merges the PR automatically. To stop that
 
 | What you want | Edit |
 |---|---|
-| Different stack (e.g. Node.js, Azure) | `stack:` in `config.yaml` |
+| Different stack (e.g. Node.js, Azure) | `stack:` in `config.yaml` (and a new template under `templates/` for runnable code) |
+| Turn runnable examples off or change Java / Spring Boot versions | `examples:` in `config.yaml` |
 | Different model | the model selector in the routine at claude.ai/code/routines |
 | Add, remove or reorder sections | the `## ` headings in `prompts/` and `stages:` in `config.yaml` |
 | New domains or topics | `domains.yaml` |

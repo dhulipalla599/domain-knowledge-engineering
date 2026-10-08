@@ -1,7 +1,9 @@
 # Changes to the automation itself need a look from both maintainers.
-# (Daily topic PRs only touch docs/ and get one rotating reviewer instead.)
+# (Daily topic PRs only touch docs/ and examples/ and get one rotating reviewer instead.)
 /config.yaml        @dhulipalla599 @naveenks720
 /domains.yaml       @dhulipalla599 @naveenks720
 /prompts/           @dhulipalla599 @naveenks720
 /scripts/           @dhulipalla599 @naveenks720
 /.github/           @dhulipalla599 @naveenks720
+/templates/         @dhulipalla599 @naveenks720
+/ROUTINE.md         @dhulipalla599 @naveenks720
