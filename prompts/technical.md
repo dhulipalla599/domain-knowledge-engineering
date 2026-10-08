@@ -30,7 +30,7 @@ The key REST endpoints as a table (Method | Path | Purpose), then one example re
 The domain events published to {{ stack.messaging }}: Event | Producer | Consumers | Key fields. Note ordering and idempotency concerns.
 
 ## Backend Implementation
-Concise {{ stack.backend }} ({{ stack.language }}) code for the central service: entity, repository, service with the key business rule, and REST controller. Show the interesting logic, not boilerplate.
+Short excerpts from the runnable example in `{{ example.path }}`: the method that enforces the key business rule, and the controller endpoint that calls it. Copy them from the files you wrote; never show code here that differs from the example. Link to the full source.
 
 ## Frontend Screen
 One concise {{ stack.frontend }} component for the most important user-facing screen.
