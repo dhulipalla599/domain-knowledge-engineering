@@ -43,10 +43,13 @@ jobs:
           for d in $dirs; do
             [ -f "$d/pom.xml" ] || continue
             echo "::group::$d"
-            if mvn -B -ntp -f "$d/pom.xml" verify; then
-              echo "✅ $d" >> "$GITHUB_STEP_SUMMARY"
+            if mvn -B -ntp -f "$d/pom.xml" verify | tee /tmp/build.log; [ "${PIPESTATUS[0]}" -eq 0 ]; then
+              tests=$(grep -E "^\[INFO\] Tests run:" /tmp/build.log | tail -1 | sed 's/\[INFO\] //')
+              echo "✅ $d ($tests)" >> "$GITHUB_STEP_SUMMARY"
+              echo "::notice title=Example built::$d - $tests"
             else
               echo "❌ $d" >> "$GITHUB_STEP_SUMMARY"; failed=1
+              echo "::error title=Example failed::$d - see the build log"
             fi
             echo "::endgroup::"
           done
