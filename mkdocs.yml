@@ -14,6 +14,7 @@ theme:
     - search.highlight
     - search.suggest
     - content.code.copy
+    - content.tabs.link        # picking Java/Python/Node.js on one snippet switches them all
     - toc.follow
   palette:
     - media: "(prefers-color-scheme: light)"
@@ -42,6 +43,8 @@ markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid

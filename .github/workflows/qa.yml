@@ -1,0 +1,52 @@
+name: Publish approved Q&A
+
+# Readers add a question and answer with the "Add a Q&A" issue form.
+# A contributor reviews it and adds the `qa-approved` label; this workflow then
+# copies the entry into qa/<domain>.yml (through a merged PR), closes the issue
+# and redeploys the website.
+
+on:
+  issues:
+    types: [opened, labeled]
+
+concurrency:
+  group: qa
+  cancel-in-progress: false
+
+jobs:
+  welcome:
+    if: github.event.action == 'opened' && (contains(github.event.issue.labels.*.name, 'qa') || startsWith(github.event.issue.title, '[Q&A]'))
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh label create qa --color 0e8a16 --description "Reader Q&A waiting for review" --force
+          gh label create qa-approved --color 1d76db --description "Publishes this Q&A to the website" --force
+          gh issue edit "$NUMBER" --add-label qa
+          gh issue comment "$NUMBER" --body "Thanks for contributing! A contributor will review this entry and publish it to the domain's Q&A page."
+
+  publish:
+    if: github.event.action == 'labeled' && github.event.label.name == 'qa-approved'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      actions: write        # starts the site deployment after merging
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml
+      - name: Publish the entry
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.issue.number }}
+          APPROVER: ${{ github.event.sender.login }}
+        run: python scripts/qa.py publish --issue "$NUMBER" --approver "$APPROVER"

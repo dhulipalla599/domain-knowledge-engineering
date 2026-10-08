@@ -12,6 +12,12 @@ This handbook closes that gap. Every page takes one business capability and walk
 4. **Career view** - AI opportunities, common pitfalls, interview questions from junior to architect
 5. **Practitioner notes** - real-world additions from the maintainers
 
+Code snippets have **Java**, **Python** and **Node.js** tabs wherever it makes sense. Pick one and every snippet on the page follows.
+
 ## Where to start
 
 Browse a domain from the navigation, or see the [Catalog](catalog.md) for everything published and coming next. A new topic is added every day.
+
+## Ask and answer
+
+Every domain has a [Q&A page](qa/index.md). Add your own question and answer; once a maintainer approves it, it is published there with your name on it. See [How We Work](contributing.md).

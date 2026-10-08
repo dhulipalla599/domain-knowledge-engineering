@@ -30,7 +30,19 @@ The key REST endpoints as a table (Method | Path | Purpose), then one example re
 The domain events published to {{ stack.messaging }}: Event | Producer | Consumers | Key fields. Note ordering and idempotency concerns.
 
 ## Backend Implementation
-Short excerpts from the runnable example in `{{ example.path }}`: the method that enforces the key business rule, and the controller endpoint that calls it. Copy them from the files you wrote; never show code here that differs from the example. Link to the full source.
+Short excerpts from the runnable example in `{{ example.path }}`: the method that enforces the key business rule, and the controller endpoint that calls it. Copy them from the files you wrote; never show code here that differs from the example. Link to the full source.{% if code_tabs|length > 1 %}
+Show every excerpt as content tabs, one per language, in this order: {% for t in code_tabs %}{{ t.label }}{% if not loop.last %}, {% endif %}{% endfor %}.
+The {{ code_tabs[0].label }} tab is the exact code from the example. The other tabs show the same logic, names and rules
+written idiomatically for that ecosystem (e.g. FastAPI + SQLAlchemy for Python, Express or NestJS for Node.js). Start the section with one quoted line saying the {{ code_tabs[0].label }} tab is the runnable example's code and naming the
+framework used on each other tab. Use exactly this syntax (blank lines around each tab, code indented four spaces):
+
+{% for t in code_tabs %}=== "{{ t.label }}"
+
+    ```{{ t.fence }}
+    ...
+    ```
+
+{% endfor %}{% endif %}
 
 ## Frontend Screen
 One concise {{ stack.frontend }} component for the most important user-facing screen.
