@@ -68,6 +68,7 @@ Your friend can create the same routine on their own Pro/Max account (steps 5-6,
 | No PR after the routine pushed | Check **Actions → Open topic PR** log; re-check step 4 workflow permissions |
 | PR check is red | The PR comment lists what failed (usually a diagram); edit the file in the PR |
 | Topic skipped as "waiting for review" | 3 topic branches are open; merge or close (and delete) them |
-| Routine says its push to `feature/...` was rejected | It pushes to its fallback branch instead, which also opens a PR. To stop that, make sure no ruleset protects `feature/*` branches |
+| Routine says its push to `feature/...` was rejected | Make sure no ruleset protects `feature/*` branches, then run the routine again |
 | PR check is red because the example failed to build | Open the PR comment for the Maven output; fix the code in the PR |
+| PR check fails on **Commit attribution** | A commit is credited to an assistant instead of a maintainer (author, committer, `Co-Authored-By` or session line). Re-commit it as yourself (`git commit --amend --reset-author` and edit the message), then force-push the topic branch. `.claude/settings.json` turns these lines off for the routine |
 | Run didn't happen | Check remaining daily runs and plan usage at https://claude.ai/code/routines |

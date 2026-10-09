@@ -26,8 +26,8 @@ The daily routine reads this file on every run and follows it exactly.
    - The commit message is exactly "commit_message": no `Co-Authored-By`, session links or any other
      trailers. Commits, branches, pages and code are credited only to the maintainers.
    - The author may be your collaborator rather than you; that is intended ("commit_author" in the JSON).
-   - `git push -u origin <branch>`. If that push is rejected, push the same commit to "fallback_branch" instead:
-     `git push -u origin HEAD:<fallback_branch>`.
+   - `git push -u origin <branch>`. Push only to this `feature/...` branch, never to any other name.
+     If the push is rejected, stop and report the error; do not push anywhere else.
 8. Do not open a pull request, do not change any other file, and never push to main.
    A GitHub workflow opens the pull request and runs the checks automatically.
 9. Finish with one line: the topic, the branch you pushed, and whether the example's tests passed.

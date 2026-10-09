@@ -55,13 +55,9 @@ def required_headings(cfg: dict) -> list[str]:
 
 
 def parse_topic_branch(branch: str, prefix: str):
-    """Return (date, 'domain/topic') for a topic branch, else (None, None).
-
-    Accepts '<prefix>...' and the fallback '<app>/<prefix>...' used when a push to <prefix> is rejected.
-    """
-    for p in (prefix, f"claude/{prefix}"):
-        if branch.startswith(p):
-            m = TOPIC_BRANCH.match(branch[len(p):])
-            if m:
-                return m.group(1), f"{m.group(2)}/{m.group(3)}"
+    """Return (date, 'domain/topic') for a topic branch, else (None, None)."""
+    if branch.startswith(prefix):
+        m = TOPIC_BRANCH.match(branch[len(prefix):])
+        if m:
+            return m.group(1), f"{m.group(2)}/{m.group(3)}"
     return None, None
