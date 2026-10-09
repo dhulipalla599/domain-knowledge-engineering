@@ -2,6 +2,7 @@
 mkdocs.gen.yml
 docs/catalog.md
 docs/*/index.md
+docs/qa/
 .routine/
 site/
 __pycache__/

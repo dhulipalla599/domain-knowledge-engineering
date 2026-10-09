@@ -1,7 +1,7 @@
 # =====================================================================
 #  Domain Knowledge for Full Stack Engineers - central configuration
 #  Edit through the GitHub web UI; the next daily run picks it up.
-#  (The Claude model is chosen in the routine at claude.ai/code/routines.)
+#  (The model is chosen in the routine's own settings.)
 # =====================================================================
 
 # --- Technology stack (fully swappable) ------------------------------
@@ -17,6 +17,18 @@ stack:
   compute: "Amazon EKS (Kubernetes)"
   iac: "Terraform"
   observability: "OpenTelemetry + CloudWatch"
+
+# --- Code tabs -----------------------------------------------------------
+# Backend code snippets on each page are shown as tabs, one per language,
+# so readers can switch stacks. The first entry is the runnable example's
+# language; the others show the same logic idiomatically. One entry = no tabs.
+code_tabs:
+  - label: Java
+    fence: java
+  - label: Python
+    fence: python
+  - label: Node.js
+    fence: typescript
 
 # --- Audience & tone -------------------------------------------------
 audience: "full stack engineers moving into a new business domain"
@@ -40,7 +52,7 @@ stages:
 
 # --- Runnable code ---------------------------------------------------
 # Each topic also gets a small project under examples/<domain>/<topic>/,
-# copied from the template below and then filled in by Claude. GitHub
+# copied from the template below and then filled in by the routine. GitHub
 # Actions builds and tests it on every topic PR.
 examples:
   enabled: true
@@ -61,7 +73,7 @@ maintainers:            # both review; the daily reviewer alternates
   - dhulipalla599
   - naveenks720
 
-# Whose Claude routine writes the pages.
+# Whose routine writes the pages.
 # One name  -> that person's routine writes every day.
 # Two names -> each person's routine writes on alternate days, and the
 #              other person reviews (both routines must exist).

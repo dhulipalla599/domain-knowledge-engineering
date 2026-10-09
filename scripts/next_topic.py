@@ -2,7 +2,7 @@
 """Step 1 of the daily routine: decide whether to write today, and what.
 
 Prints JSON. When "action" is "generate", it also
-  - writes .routine/brief.md, the complete writing brief for the Claude session, and
+  - writes .routine/brief.md, the complete writing brief for the routine, and
   - creates the runnable example skeleton under examples/<domain>/<topic>/.
 
     python scripts/next_topic.py --me dhulipalla599 [--force] [--topic "Fraud Detection"]
@@ -129,7 +129,8 @@ def main() -> int:
         reviewer = maintainers[today.toordinal() % len(maintainers)] if maintainers else ""
 
     pending = pending_topics(cfg)
-    published = {f"{p.parent.name}/{p.stem}": p for p in DOCS.glob("*/*.md") if p.name != "index.md"}
+    published = {f"{p.parent.name}/{p.stem}": p for p in DOCS.glob("*/*.md")
+                 if p.name != "index.md" and p.parent.name != "qa"}
     made_today = any(day == today.isoformat() for _, day, _ in pending) or any(
         str(front_matter(p).get("generated")) == today.isoformat() for p in published.values()
     )
@@ -187,7 +188,8 @@ def main() -> int:
     env = Environment(loader=FileSystemLoader(str(ROOT / "prompts")), undefined=StrictUndefined)
     ctx = {"domain": domain["name"], "topic": topic, "stack": cfg["stack"],
            "domain_kind": domain.get("kind", "business"), "example": example or {"path": "", "url": ""},
-           "audience": cfg.get("audience", "engineers"), "code_style": cfg.get("code_style", "concise")}
+           "audience": cfg.get("audience", "engineers"), "code_style": cfg.get("code_style", "concise"),
+           "code_tabs": cfg.get("code_tabs") or []}
     parts = [env.get_template("system.md").render(**ctx)]
     for stage in enabled_stages(cfg):
         parts.append(env.get_template(stage["prompt"].split("/", 1)[1]).render(**ctx))
@@ -203,7 +205,8 @@ def main() -> int:
         + (f"example: {example['path']}\n" if example else "")
         + "---\n\n"
         f"# {topic}\n\n"
-        f"> **Domain:** {domain['name']} · **Generated:** {today:%B %d, %Y} with Claude.\n\n"
+        f"> **Domain:** {domain['name']} · **Author:** [@{commit_author}](https://github.com/{commit_author})"
+        f" · **Published:** {today:%B %d, %Y}\n\n"
         + example_line
         + "...all sections below, in order...\n\n"
         "## Practitioner Notes\n\n"
