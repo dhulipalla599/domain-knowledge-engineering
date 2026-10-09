@@ -1,0 +1,23 @@
+name: Commit attribution
+
+# Every commit must be credited to a maintainer: no AI-assistant authors,
+# committers, Co-Authored-By lines or session links. Topic PRs are also
+# checked by "Open topic PR".
+
+on:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Check commits in this PR
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/check_attribution.py "$BASE..$HEAD"
