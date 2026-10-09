@@ -9,7 +9,7 @@ example: examples/healthcare/patient-registration-and-master-patient-index
 
 # Patient Registration and Master Patient Index
 
-> **Domain:** Healthcare · **Generated:** October 08, 2026 with Claude.
+> **Domain:** Healthcare · **Author:** [@naveenks720](https://github.com/naveenks720) · **Published:** October 08, 2026
 
 > **Runnable code:** [`examples/healthcare/patient-registration-and-master-patient-index`](https://github.com/dhulipalla599/domain-knowledge-engineering/tree/main/examples/healthcare/patient-registration-and-master-patient-index)
 
@@ -348,68 +348,190 @@ Content-Type: application/problem+json
 
 ## Backend Implementation
 
+> The **Java** tab is the code from the runnable example. The **Python** (FastAPI + SQLAlchemy) and **Node.js** (TypeScript + Express) tabs show the same logic for those stacks.
+
 The key rule lives in [`RegistrationService`](https://github.com/dhulipalla599/domain-knowledge-engineering/blob/main/examples/healthcare/patient-registration-and-master-patient-index/src/main/java/com/dke/healthcare/patient_registration_and_master_patient_index/service/RegistrationService.java): score the registration against everyone with the same date of birth, then reject, hold or accept.
 
-```java
-@Transactional
-public Patient register(String firstName, String lastName, LocalDate dob, String phone, String postcode) {
-    if (dob.isAfter(LocalDate.now(clock))) {
-        throw new InvalidRegistrationException("Date of birth cannot be in the future");
+=== "Java"
+
+    ```java
+    @Transactional
+    public Patient register(String firstName, String lastName, LocalDate dob, String phone, String postcode) {
+        if (dob.isAfter(LocalDate.now(clock))) {
+            throw new InvalidRegistrationException("Date of birth cannot be in the future");
+        }
+        Patient best = null;
+        int bestScore = 0;
+        for (Patient existing : patients.findByDateOfBirthAndStatusNot(dob, PatientStatus.MERGED)) {
+            int score = MatchScorer.score(firstName, lastName, dob, phone, postcode, existing);
+            if (score > bestScore) {
+                best = existing;
+                bestScore = score;
+            }
+        }
+        if (bestScore >= MatchScorer.DUPLICATE_THRESHOLD) {
+            throw new DuplicatePatientException(best.getMrn(), bestScore);
+        }
+        boolean needsReview = bestScore >= MatchScorer.REVIEW_THRESHOLD;
+        Patient saved = patients.save(new Patient(firstName, lastName, dob, phone, postcode,
+                needsReview ? PatientStatus.PENDING_REVIEW : PatientStatus.ACTIVE));
+        events.publishEvent(needsReview
+                ? new MatchReviewRequested(saved.getMrn(), best.getMrn(), bestScore)
+                : new PatientRegistered(saved.getMrn()));
+        return saved;
     }
-    Patient best = null;
-    int bestScore = 0;
-    for (Patient existing : patients.findByDateOfBirthAndStatusNot(dob, PatientStatus.MERGED)) {
-        int score = MatchScorer.score(firstName, lastName, dob, phone, postcode, existing);
-        if (score > bestScore) {
+    ```
+
+=== "Python"
+
+    ```python
+    def register(self, first_name: str, last_name: str, dob: date, phone: str, postcode: str) -> Patient:
+        with self.session.begin():
+            if dob > self.clock.today():
+                raise InvalidRegistrationError("Date of birth cannot be in the future")
+            best, best_score = None, 0
+            for existing in self.patients.find_by_date_of_birth_and_status_not(dob, PatientStatus.MERGED):
+                score = match_scorer.score(first_name, last_name, dob, phone, postcode, existing)
+                if score > best_score:
+                    best, best_score = existing, score
+            if best_score >= match_scorer.DUPLICATE_THRESHOLD:
+                raise DuplicatePatientError(best.mrn, best_score)
+            needs_review = best_score >= match_scorer.REVIEW_THRESHOLD
+            saved = self.patients.save(Patient(
+                first_name, last_name, dob, phone, postcode,
+                status=PatientStatus.PENDING_REVIEW if needs_review else PatientStatus.ACTIVE))
+            self.events.publish(MatchReviewRequested(saved.mrn, best.mrn, best_score) if needs_review
+                                else PatientRegistered(saved.mrn))
+            return saved
+    ```
+
+=== "Node.js"
+
+    ```typescript
+    async register(firstName: string, lastName: string, dob: Date, phone: string, postcode: string): Promise<Patient> {
+      return this.db.transaction(async (tx) => {
+        if (dob > this.clock.today()) {
+          throw new InvalidRegistrationError("Date of birth cannot be in the future");
+        }
+        let best: Patient | undefined;
+        let bestScore = 0;
+        for (const existing of await this.patients.findByDateOfBirthAndStatusNot(tx, dob, PatientStatus.MERGED)) {
+          const score = MatchScorer.score(firstName, lastName, dob, phone, postcode, existing);
+          if (score > bestScore) {
             best = existing;
             bestScore = score;
+          }
         }
+        if (best && bestScore >= MatchScorer.DUPLICATE_THRESHOLD) {
+          throw new DuplicatePatientError(best.mrn, bestScore);
+        }
+        const needsReview = best !== undefined && bestScore >= MatchScorer.REVIEW_THRESHOLD;
+        const saved = await this.patients.save(tx, new Patient(firstName, lastName, dob, phone, postcode,
+          needsReview ? PatientStatus.PENDING_REVIEW : PatientStatus.ACTIVE));
+        this.events.emit(needsReview
+          ? new MatchReviewRequested(saved.mrn, best!.mrn, bestScore)
+          : new PatientRegistered(saved.mrn));
+        return saved;
+      });
     }
-    if (bestScore >= MatchScorer.DUPLICATE_THRESHOLD) {
-        throw new DuplicatePatientException(best.getMrn(), bestScore);
-    }
-    boolean needsReview = bestScore >= MatchScorer.REVIEW_THRESHOLD;
-    Patient saved = patients.save(new Patient(firstName, lastName, dob, phone, postcode,
-            needsReview ? PatientStatus.PENDING_REVIEW : PatientStatus.ACTIVE));
-    events.publishEvent(needsReview
-            ? new MatchReviewRequested(saved.getMrn(), best.getMrn(), bestScore)
-            : new PatientRegistered(saved.getMrn()));
-    return saved;
-}
-```
+    ```
 
 The controller endpoint that calls it:
 
-```java
-@PostMapping("/patients")
-public ResponseEntity<PatientResponse> register(@Valid @RequestBody RegisterPatientRequest req) {
-    var patient = service.register(req.firstName(), req.lastName(), req.dateOfBirth(), req.phone(), req.postcode());
-    return ResponseEntity.created(URI.create("/api/patients/" + patient.getMrn()))
-            .body(PatientResponse.from(patient));
-}
-```
+=== "Java"
+
+    ```java
+    @PostMapping("/patients")
+    public ResponseEntity<PatientResponse> register(@Valid @RequestBody RegisterPatientRequest req) {
+        var patient = service.register(req.firstName(), req.lastName(), req.dateOfBirth(), req.phone(), req.postcode());
+        return ResponseEntity.created(URI.create("/api/patients/" + patient.getMrn()))
+                .body(PatientResponse.from(patient));
+    }
+    ```
+
+=== "Python"
+
+    ```python
+    @router.post("/patients", status_code=201, response_model=PatientResponse)
+    def register(req: RegisterPatientRequest, response: Response,
+                 service: RegistrationService = Depends()) -> PatientResponse:
+        patient = service.register(req.first_name, req.last_name, req.date_of_birth, req.phone, req.postcode)
+        response.headers["Location"] = f"/api/patients/{patient.mrn}"
+        return PatientResponse.from_patient(patient)
+    ```
+
+=== "Node.js"
+
+    ```typescript
+    router.post("/patients", validate(RegisterPatientRequest), async (req, res) => {
+      const { firstName, lastName, dateOfBirth, phone, postcode } = req.body as RegisterPatientRequest;
+      const patient = await service.register(firstName, lastName, new Date(dateOfBirth), phone, postcode);
+      res.status(201).location(`/api/patients/${patient.mrn}`).json(PatientResponse.from(patient));
+    });
+    ```
 
 Legal state changes are enforced inside the entity, so no caller can bypass them:
 
-```java
-private void moveTo(PatientStatus next) {
-    if (!status.allowedNext().contains(next)) {
-        throw new IllegalStateTransitionException(mrn, status, next);
-    }
-    status = next;
-}
+=== "Java"
 
-public void mergeInto(Patient survivor) {
-    if (survivor == this || survivor.mrn.equals(mrn)) {
-        throw new IllegalStateTransitionException(mrn, status, PatientStatus.MERGED);
+    ```java
+    private void moveTo(PatientStatus next) {
+        if (!status.allowedNext().contains(next)) {
+            throw new IllegalStateTransitionException(mrn, status, next);
+        }
+        status = next;
     }
-    if (survivor.status != PatientStatus.ACTIVE) {
-        throw new IllegalStateTransitionException(survivor.mrn, survivor.status, PatientStatus.ACTIVE);
+
+    public void mergeInto(Patient survivor) {
+        if (survivor == this || survivor.mrn.equals(mrn)) {
+            throw new IllegalStateTransitionException(mrn, status, PatientStatus.MERGED);
+        }
+        if (survivor.status != PatientStatus.ACTIVE) {
+            throw new IllegalStateTransitionException(survivor.mrn, survivor.status, PatientStatus.ACTIVE);
+        }
+        moveTo(PatientStatus.MERGED);
+        this.survivorMrn = survivor.mrn;
     }
-    moveTo(PatientStatus.MERGED);
-    this.survivorMrn = survivor.mrn;
-}
-```
+    ```
+
+=== "Python"
+
+    ```python
+    def _move_to(self, next_status: PatientStatus) -> None:
+        if next_status not in self.status.allowed_next():
+            raise IllegalStateTransitionError(self.mrn, self.status, next_status)
+        self.status = next_status
+
+    def merge_into(self, survivor: "Patient") -> None:
+        if survivor is self or survivor.mrn == self.mrn:
+            raise IllegalStateTransitionError(self.mrn, self.status, PatientStatus.MERGED)
+        if survivor.status is not PatientStatus.ACTIVE:
+            raise IllegalStateTransitionError(survivor.mrn, survivor.status, PatientStatus.ACTIVE)
+        self._move_to(PatientStatus.MERGED)
+        self.survivor_mrn = survivor.mrn
+    ```
+
+=== "Node.js"
+
+    ```typescript
+    private moveTo(next: PatientStatus): void {
+      if (!allowedNext(this.status).includes(next)) {
+        throw new IllegalStateTransitionError(this.mrn, this.status, next);
+      }
+      this.status = next;
+    }
+
+    mergeInto(survivor: Patient): void {
+      if (survivor === this || survivor.mrn === this.mrn) {
+        throw new IllegalStateTransitionError(this.mrn, this.status, PatientStatus.MERGED);
+      }
+      if (survivor.status !== PatientStatus.ACTIVE) {
+        throw new IllegalStateTransitionError(survivor.mrn, survivor.status, PatientStatus.ACTIVE);
+      }
+      this.moveTo(PatientStatus.MERGED);
+      this.survivorMrn = survivor.mrn;
+    }
+    ```
 
 Full source: [`examples/healthcare/patient-registration-and-master-patient-index`](https://github.com/dhulipalla599/domain-knowledge-engineering/tree/main/examples/healthcare/patient-registration-and-master-patient-index).
 

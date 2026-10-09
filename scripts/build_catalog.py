@@ -4,12 +4,15 @@
 Creates:
   docs/catalog.md            progress table: published vs. upcoming topics
   docs/<domain>/index.md     landing page per domain
+  docs/qa/                   reader Q&A, one page per domain (see qa.py)
   mkdocs.gen.yml             mkdocs.yml + a navigation tree in backlog order
 """
 import pathlib
 import re
 
 import yaml
+
+from qa import load_entries, render_pages
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
@@ -53,9 +56,16 @@ def main() -> None:
         if not ordered:
             continue
         links = "\n".join(f"- [{t}]({pathlib.Path(path).name})" for t, path in ordered)
-        (folder / "index.md").write_text(f"# {d['name']}\n\n{links}\n", encoding="utf-8")
+        qa_count = len(load_entries(d["slug"]))
+        (folder / "index.md").write_text(
+            f"# {d['name']}\n\n{links}\n\n"
+            f"**Q&A:** [{qa_count} reader question{'s' if qa_count != 1 else ''} about {d['name']}]"
+            f"(../qa/{d['slug']}.md), or add your own.\n",
+            encoding="utf-8")
         nav.append({d["name"]: [f"{d['slug']}/index.md"] + [{t: path} for t, path in ordered]})
 
+    cfg = yaml.safe_load((ROOT / "config.yaml").read_text())
+    nav.append({"Q&A": render_pages(domains, cfg.get("repo", ""))})
     nav.append({"How We Work": "contributing.md"})
     (DOCS / "catalog.md").write_text(
         "# Catalog\n\n"

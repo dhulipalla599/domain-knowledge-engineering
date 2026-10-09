@@ -1,6 +1,6 @@
 # Routine prompt
 
-This is the text in the **Instructions** box of the routine at https://claude.ai/code/routines.
+This is the text in the **Instructions** box of the daily routine (https://claude.ai/code/routines).
 The actual steps live in [ROUTINE.md](ROUTINE.md), so changes merged to `main` take effect on the
 next run without editing the routine. If your friend creates a second routine, change the username
 to `naveenks720` in their copy.
