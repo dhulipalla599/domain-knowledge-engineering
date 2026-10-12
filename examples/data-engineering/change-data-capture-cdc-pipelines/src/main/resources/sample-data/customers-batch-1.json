@@ -1,0 +1,9 @@
+[
+  {"op": "u", "customerId": 1, "lsn": 160, "email": "ana.martins@harborpine.example", "fullName": "Ana Martins", "city": "Porto"},
+  {"op": "u", "customerId": 2, "lsn": 140, "email": "ben.okafor@harborpine.example", "fullName": "Ben Okafor", "city": "Abuja"},
+  {"op": "c", "customerId": 4, "lsn": 161, "email": "dmitri.volkov@harborpine.example", "fullName": "Dmitri Volkov", "city": "Tallinn"},
+  {"op": "d", "customerId": 3, "lsn": 162},
+  {"op": "c", "customerId": 5, "lsn": 163, "email": "not-an-email", "fullName": "Eve Larsen", "city": "Oslo"},
+  {"op": "x", "customerId": 6, "lsn": 164},
+  {"op": "c", "customerId": 4, "lsn": 161, "email": "dmitri.volkov@harborpine.example", "fullName": "Dmitri Volkov", "city": "Tallinn"}
+]
