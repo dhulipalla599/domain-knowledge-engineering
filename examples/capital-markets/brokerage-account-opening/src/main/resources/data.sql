@@ -1,0 +1,4 @@
+INSERT INTO account_application (id, idempotency_key, applicant_name, date_of_birth, tax_id_last4, account_type, liquid_net_worth, status, decision_reason, account_number, created_at) VALUES
+ ('11111111-1111-1111-1111-111111111111', 'seed-001', 'Maria Santos', '1988-04-12', '4821', 'CASH', 18000.00, 'ACTIVE', 'Automatic approval: KYC and screening passed', 'BRK-000001', TIMESTAMP '2026-09-01 10:00:00'),
+ ('22222222-2222-2222-2222-222222222222', 'seed-002', 'Daniel Okafor', '1975-11-30', '7733', 'MARGIN', 120000.00, 'APPROVED', 'Automatic approval: KYC and screening passed', NULL, TIMESTAMP '2026-10-10 09:30:00'),
+ ('33333333-3333-3333-3333-333333333333', 'seed-003', 'Ivan Blocklisted-Example', '1990-02-02', '1234', 'CASH', 5000.00, 'PENDING_REVIEW', 'Possible sanctions match', NULL, TIMESTAMP '2026-10-12 14:15:00');
