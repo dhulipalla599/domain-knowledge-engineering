@@ -1,0 +1,14 @@
+# Run against PostgreSQL instead of H2:
+#   docker compose up -d
+#   mvn spring-boot:run -Dspring-boot.run.profiles=postgres
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/example
+    username: example
+    password: example
+  jpa:
+    hibernate:
+      ddl-auto: update
+  h2:
+    console:
+      enabled: false
