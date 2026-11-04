@@ -240,7 +240,7 @@ def main() -> int:
         "path": path, "example_path": example.get("path", ""),
         "build_command": example.get("build_command", ""),
         "files_to_commit": files_to_commit,
-        "branch": branch, "fallback_branch": f"claude/{branch}",
+        "branch": branch,
         "commit_author": commit_author, "reviewer": reviewer, "brief": ".routine/brief.md",
         "commit_message": f"docs({domain['slug']}): add {topic}"
                           + (" with runnable example" if example else ""),

@@ -1,7 +1,7 @@
 name: Open topic PR
 
 # The daily routine pushes each new topic to a branch named
-#   feature/YYYY-MM-DD--<domain>--<topic>   (or <app>/feature/... as a fallback)
+#   feature/YYYY-MM-DD--<domain>--<topic>
 # This workflow turns that push into a labeled PR, assigns the day's reviewer,
 # and checks everything: page sections, diagrams, the site build, and the
 # runnable example's Maven build and tests. It re-runs on every new push to
@@ -11,7 +11,6 @@ on:
   push:
     branches:
       - "feature/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]--**"
-      - "claude/feature/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]--**"
 
 concurrency:
   group: open-pr-${{ github.ref }}
@@ -77,6 +76,11 @@ jobs:
         continue-on-error: true
         run: python scripts/check_page.py "${{ steps.page.outputs.file }}" --mermaid --build --report /tmp/report.md
 
+      - name: Check commit attribution
+        id: attribution
+        continue-on-error: true
+        run: python scripts/check_attribution.py origin/main..HEAD --report /tmp/attribution.md
+
       - name: Check the site builds
         id: site
         continue-on-error: true
@@ -96,6 +100,7 @@ jobs:
           CHECK: ${{ steps.check.outcome }}
           SITE: ${{ steps.site.outcome }}
         run: |
+          printf '\n' >> /tmp/report.md && cat /tmp/attribution.md >> /tmp/report.md
           gh label create auto-generated --color 5319e7 --description "Daily topic page" --force
           gh label create hold --color d93f0b --description "Stops the 24h auto-merge" --force
           if [ "$SITE" = "failure" ]; then
@@ -140,7 +145,7 @@ jobs:
           fi
 
       - name: Fail if the page or example has problems
-        if: steps.check.outcome == 'failure' || steps.site.outcome == 'failure'
+        if: steps.check.outcome == 'failure' || steps.site.outcome == 'failure' || steps.attribution.outcome == 'failure'
         run: |
           echo "::error::Checks failed - see the report in the PR."
           exit 1
