@@ -1,0 +1,13 @@
+# Generated at build time by scripts/build_catalog.py
+mkdocs.gen.yml
+docs/catalog.md
+docs/*/index.md
+docs/qa/
+.routine/
+site/
+__pycache__/
+.venv/
+target/
+.DS_Store
+.idea/
+*.iml

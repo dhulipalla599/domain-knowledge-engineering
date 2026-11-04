@@ -2,6 +2,7 @@
 #  Topic backlog. Topics are generated in the order listed.
 #  - Add a domain: copy a block, give it a unique slug.
 #  - Pause a domain: set enabled: false.
+#  - kind: ai | data tells the runnable example to use stubs / sample files.
 #  - Done topics are detected automatically from docs/<slug>/,
 #    so you never have to mark anything complete by hand.
 # =====================================================================
@@ -36,6 +37,34 @@ domains:
       - Pharmacy and e-Prescribing
       - HL7 and FHIR Interoperability
       - HIPAA Consent and Audit Trails
+
+  - name: AI and LLM Engineering
+    slug: ai-engineering
+    kind: ai          # examples use a stub model behind an interface (no API key)
+    enabled: true
+    topics:
+      - Retrieval-Augmented Generation (RAG) for Customer Support
+      - LLM Gateway and Prompt Management
+      - AI Agents with Tool Calling
+      - Document Intelligence and Data Extraction
+      - Vector Search and Embeddings
+      - LLM Evaluation and Guardrails
+      - Recommendation Engine
+      - Model Serving and MLOps Monitoring
+
+  - name: Data Engineering
+    slug: data-engineering
+    kind: data        # examples run an in-process pipeline on sample files
+    enabled: true
+    topics:
+      - Change Data Capture (CDC) Pipelines
+      - Real-Time Streaming ETL with Kafka
+      - Batch ETL and Workflow Orchestration
+      - Data Quality and Validation
+      - Data Lakehouse and Medallion Architecture
+      - Slowly Changing Dimensions and Data Warehousing
+      - Feature Store for Machine Learning
+      - Data Catalog and Lineage
 
   - name: Insurance
     slug: insurance

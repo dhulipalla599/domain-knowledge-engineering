@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: ai-engineering-retrieval-augmented-generation-rag-for-customer-support
+  datasource:
+    url: jdbc:h2:mem:ai-engineering-retrieval-augmented-generation-rag-for-customer-support;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  h2:
+    console:
+      enabled: true          # http://localhost:8080/h2-console  (JDBC URL above)
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    defer-datasource-initialization: true   # data.sql (if present) runs after tables exist
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+server:
+  port: 8080
+
+rag:
+  min-score: 0.25   # below this top similarity the question is escalated instead of sent to the model
+  top-k: 3

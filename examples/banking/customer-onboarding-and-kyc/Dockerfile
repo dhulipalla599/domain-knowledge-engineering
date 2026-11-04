@@ -1,0 +1,6 @@
+# Build:  mvn -B package && docker build -t banking-customer-onboarding-and-kyc .
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+COPY target/banking-customer-onboarding-and-kyc-0.1.0.jar app.jar
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

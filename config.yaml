@@ -1,7 +1,7 @@
 # =====================================================================
 #  Domain Knowledge for Full Stack Engineers - central configuration
 #  Edit through the GitHub web UI; the next daily run picks it up.
-#  (The Claude model is chosen in the routine at claude.ai/code/routines.)
+#  (The model is chosen in the routine's own settings.)
 # =====================================================================
 
 # --- Technology stack (fully swappable) ------------------------------
@@ -18,6 +18,18 @@ stack:
   iac: "Terraform"
   observability: "OpenTelemetry + CloudWatch"
 
+# --- Code tabs -----------------------------------------------------------
+# Backend code snippets on each page are shown as tabs, one per language,
+# so readers can switch stacks. The first entry is the runnable example's
+# language; the others show the same logic idiomatically. One entry = no tabs.
+code_tabs:
+  - label: Java
+    fence: java
+  - label: Python
+    fence: python
+  - label: Node.js
+    fence: typescript
+
 # --- Audience & tone -------------------------------------------------
 audience: "full stack engineers moving into a new business domain"
 code_style: "concise, production-minded, no boilerplate beyond what teaches the idea"
@@ -31,9 +43,25 @@ stages:
   - id: technical
     prompt: prompts/technical.md
     enabled: true
+  - id: code                      # runnable example + UML (needs examples.enabled)
+    prompt: prompts/code.md
+    enabled: true
   - id: career
     prompt: prompts/career.md
     enabled: true
+
+# --- Runnable code ---------------------------------------------------
+# Each topic also gets a small project under examples/<domain>/<topic>/,
+# copied from the template below and then filled in by the routine. GitHub
+# Actions builds and tests it on every topic PR.
+examples:
+  enabled: true
+  folder: examples
+  template: templates/java-spring-boot
+  group_id: "com.dke"              # Java package root
+  java_version: "21"
+  spring_boot_version: "3.5.5"
+  build_command: "mvn -B -ntp verify"
 
 # --- Topic selection ---------------------------------------------------
 # round_robin: rotate across enabled domains (Banking, Healthcare, ...)
@@ -45,12 +73,33 @@ maintainers:            # both review; the daily reviewer alternates
   - dhulipalla599
   - naveenks720
 
-# Whose Claude routine writes the pages.
+# Whose routine writes the pages.
 # One name  -> that person's routine writes every day.
 # Two names -> each person's routine writes on alternate days, and the
 #              other person reviews (both routines must exist).
 authors:
   - dhulipalla599
+
+# Whose name each day's commit carries. The person alternates every day
+# (in this order) and the OTHER maintainer is assigned to review and merge,
+# so both of you build contribution history: one day you commit and your
+# friend reviews, the next day the reverse. Works with a single routine.
+# Leave it empty to commit as the routine owner every day.
+commit_authors:
+  - dhulipalla599
+  - naveenks720
+
+# Git identity for each person, so commits count on their GitHub
+# contribution graph. The email is GitHub's private
+# "noreply" address: <numeric id>+<username>@users.noreply.github.com
+git_identities:
+  dhulipalla599: "Venkata Sandeep Dhullipalla <219688820+dhulipalla599@users.noreply.github.com>"
+  naveenks720: "naveenks720 <25269118+naveenks720@users.noreply.github.com>"
+
+# --- Repository & branches -------------------------------------------------
+repo: dhulipalla599/domain-knowledge-engineering
+# Topic branches look like feature/2026-10-08--banking--fraud-detection
+branch_prefix: "feature/"
 
 # --- Merge rules ---------------------------------------------------------
 auto_merge_after_hours: 24   # bot merges if nobody approved/merged by then

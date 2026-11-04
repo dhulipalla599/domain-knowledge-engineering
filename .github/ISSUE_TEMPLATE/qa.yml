@@ -1,0 +1,47 @@
+name: Add a Q&A
+description: Share a question and answer about one of the domains. A contributor reviews it before it appears on the website.
+title: "[Q&A] "
+labels: ["qa"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for adding to the handbook. A contributor will review your entry, may tidy up the answer,
+        and then approves it with the `qa-approved` label. Approved entries appear on the domain's Q&A page.
+  - type: dropdown
+    id: domain
+    attributes:
+      label: Domain
+      # Keep in sync with the names in domains.yaml.
+      options:
+        - Banking
+        - Healthcare
+        - AI and LLM Engineering
+        - Data Engineering
+        - Insurance
+        - Capital Markets and Brokerage
+        - Retail
+        - Logistics
+        - Telecom
+        - Airline and Travel
+    validations:
+      required: true
+  - type: input
+    id: topic
+    attributes:
+      label: Related topic (optional)
+      placeholder: e.g. Customer Onboarding and KYC
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      placeholder: e.g. Why does a bank re-screen existing customers when a sanctions list changes?
+    validations:
+      required: true
+  - type: textarea
+    id: answer
+    attributes:
+      label: Answer
+      description: Markdown is supported, including code blocks. Explain it the way you would to a teammate.
+    validations:
+      required: true
