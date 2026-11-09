@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: data-engineering-batch-etl-and-workflow-orchestration
+  datasource:
+    url: jdbc:h2:mem:data-engineering-batch-etl-and-workflow-orchestration;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  h2:
+    console:
+      enabled: true          # http://localhost:8080/h2-console  (JDBC URL above)
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    defer-datasource-initialization: true   # data.sql (if present) runs after tables exist
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+server:
+  port: 8080
+
+etl:
+  max-reject-ratio: 0.2      # data quality gate: fail the run above 20% rejected rows
+  schedule:
+    enabled: false           # set true to enable the nightly @Scheduled job
+    cron: "0 0 2 * * *"
