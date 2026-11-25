@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: data-engineering-data-quality-and-validation
+  datasource:
+    url: jdbc:h2:mem:data-engineering-data-quality-and-validation;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  h2:
+    console:
+      enabled: true          # http://localhost:8080/h2-console  (JDBC URL above)
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    defer-datasource-initialization: true   # data.sql (if present) runs after tables exist
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+server:
+  port: 8080
+
+dq:
+  max-error-ratio: 0.10            # quality gate: quarantine the file above 10% rejected rows
+  high-amount-threshold: 250000    # WARN (not reject) claims above this amount
+  schedule:
+    enabled: false                 # set true to validate yesterday's file every morning
+    cron: "0 30 6 * * *"
