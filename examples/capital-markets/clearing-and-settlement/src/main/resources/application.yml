@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: capital-markets-clearing-and-settlement
+  datasource:
+    url: jdbc:h2:mem:capital-markets-clearing-and-settlement;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  h2:
+    console:
+      enabled: true          # http://localhost:8080/h2-console  (JDBC URL above)
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    defer-datasource-initialization: true   # data.sql (if present) runs after tables exist
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+server:
+  port: 8080
+
+clearing:
+  # Demo "now": Wednesday 25 Nov 2026, 09:00 New York. Remove (or set empty) to use the real clock.
+  fixed-now: "2026-11-25T14:00:00Z"
+  # Settlement holidays (illustrative; load the real market calendar in production).
+  holidays: "2026-11-26,2026-12-25,2027-01-01"
